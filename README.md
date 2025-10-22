@@ -1,4 +1,4 @@
-Netflix-PS4-JS-Inject
+# Netflix-PS4-JS-Inject
 
 Inject custom JavaScript into the Netflix PS4 error screen by intercepting Netflix's requests to localhost.
 
