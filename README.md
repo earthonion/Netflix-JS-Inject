@@ -44,9 +44,9 @@ On your PS4:
 
 4. When prompted for Proxy Server, choose Use and enter:
 
-IP address: <your local machine IP> (example: 192.168.1.100)
+- IP address: <your local machine IP>
 
-Port: 8080
+- Port: 8080
 
 
 
