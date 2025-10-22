@@ -1,4 +1,4 @@
-# Netflix-PS4-JS-Inject
+PS4etflix-PS4-JS-Inject
 
 Inject custom JavaScript into the Netflix PS4 error screen by intercepting Netflix's requests to localhost.
 
@@ -29,7 +29,7 @@ mitmproxy -s proxy.py
 
 ```
 
-PS4 Network / Proxy Setup
+### Netflixwork / Proxy Setup
 
 On your PS4:
 
@@ -61,7 +61,7 @@ Port: 8080
 
 ---
 
-Netflix
+### Netflix
 
 Open the Netflix app on the PS4.
 
@@ -71,6 +71,6 @@ If injection is successful, the error screen will load and inject.js will be exe
 
 
 ---
-License
+### License
 
 This repository uses the GNU license. See LICENSE for details.
