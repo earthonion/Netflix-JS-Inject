@@ -1,4 +1,4 @@
-# Netflix-PS4-JS-Inject
+# Netflix PS5 JS Inject
 
 Inject custom JavaScript into the Netflix PS4 error screen by intercepting Netflix's requests to localhost.
 
@@ -31,7 +31,7 @@ mitmproxy -s proxy.py
 
 ### Network / Proxy Setup
 
-On your PS4:
+On your PS5:
 
 1. Go to Settings → Network.
 
@@ -63,7 +63,7 @@ On your PS4:
 
 ### Netflix
 
-Open the Netflix app on the PS4.
+Open the Netflix app on the PS5.
 
 Wait for Netflix to hit the error flow (probably ui-800)
 
