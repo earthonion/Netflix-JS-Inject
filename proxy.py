@@ -3,7 +3,7 @@ import os
 
 def request(flow: http.HTTPFlow) -> None:
 
-    # Trigger an error (probably appboot)
+    # Trigger an error (probably appboot) and block Sony servers
     if "netflix" in flow.request.pretty_host or "playstation" in flow.request.pretty_host:
         flow.response = http.Response.make( 
             200,
