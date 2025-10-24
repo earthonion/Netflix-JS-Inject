@@ -4,8 +4,8 @@ import os
 def request(flow: http.HTTPFlow) -> None:
 
     # Trigger an error (probably appboot)
-    if "netflix" in flow.request.pretty_host:
-        flow.response = http.Response.make(
+    if "netflix" in flow.request.pretty_host or "playstation" in flow.request.pretty_host:
+        flow.response = http.Response.make( 
             200,
             b"uwu"*9999999, # probably don't need this many uwus. just corrupt the response 
             {"Content-Type": "application/x-msl+json"}
