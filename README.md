@@ -2,7 +2,7 @@
 
 Inject custom JavaScript into the Netflix PS5 error screen by intercepting Netflix's requests to localhost.
 
-Tested with Netflix version 6.00 https://prosperopatches.com/PPSA01615?v=06.000.000
+lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 > This project uses a local MITM proxy to inject and execute `inject.js` on the Netflix error page
 ---
