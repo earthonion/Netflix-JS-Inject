@@ -25,7 +25,7 @@ def request(flow: http.HTTPFlow) -> None:
     # Trigger an error (probably appboot) and block Sony servers
     if "netflix" in flow.request.pretty_host:
         flow.response = http.Response.make( 
-            404,
+            200,
             b"uwu"*9999999,  # probably don't need this many uwus. just corrupt the response 
             {"Content-Type": "application/x-msl+json"}
         )
