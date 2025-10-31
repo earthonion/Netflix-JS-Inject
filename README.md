@@ -1,4 +1,4 @@
-# Netflix PS5 JS Inject
+# Netflix N Hack
 
 Inject custom JavaScript into the Netflix PS5 error screen by intercepting Netflix's requests to localhost.
 
