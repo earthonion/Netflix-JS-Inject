@@ -97,8 +97,10 @@ If injection is successful, the error screen will load and inject.js will be exe
 
 ### credits 
 
-autechre for the idea https://github.com/autechre-warp
-Dr.YenYen for testing!
+- autechre for the idea https://github.com/autechre-warp
+- Dr.YenYen for testing!
+- Gezine for help with exploit/Y2JB for reference 
+- ufm42 for exploit ideas as well
 
 ---
 ### License
