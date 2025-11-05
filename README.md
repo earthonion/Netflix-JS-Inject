@@ -4,7 +4,9 @@ Inject custom JavaScript into the Netflix PS5 error screen by intercepting Netfl
 
 PS5 firmware version: 4.03-12.XX
 
-lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
+Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
+
+This is a PoC of ROP and Syscall developed while learning about PS5 v8 (Javascript) userland exploiting techniques. Code is intended for developers.
 
 > This project uses a local MITM proxy to inject and execute `inject.js` on the Netflix error page
 ---
@@ -96,10 +98,10 @@ Wait for Netflix to hit the error flow (probably ui-800)
 If injection is successful, the error screen will load and inject.js will be executed. Netflix may crash after the injection depending on payload.
 
 ### credits 
-
+- earthonion for base code https://github.com/earthonion/Netflix-N-Hack
 - autechre for the idea https://github.com/autechre-warp
 - Dr.YenYen for testing!
-- Gezine for help with exploit/Y2JB for reference 
+- Gezine for help with exploit/Y2JB for reference
 - ufm42 for exploit ideas as well
 
 ---
