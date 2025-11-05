@@ -8,6 +8,8 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 This is a PoC of ROP and Syscall developed while learning about PS5 v8 (Javascript) userland exploiting techniques. Code is intended for developers.
 
+Code working on NF App EU 6.000 : https://prosperopatches.com/PPSA01615
+
 > This project uses a local MITM proxy to inject and execute `inject.js` on the Netflix error page
 ---
 ## Tested On PS5 
