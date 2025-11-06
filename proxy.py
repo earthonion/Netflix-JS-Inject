@@ -72,7 +72,7 @@ def request(flow: http.HTTPFlow) -> None:
 
     # Map error text js to inject.js
     if "/js/common/config/text/config.text.lruderrorpage" in flow.request.path:
-        inject_path = os.path.join(os.path.dirname(__file__), "inject0.js")
+        inject_path = os.path.join(os.path.dirname(__file__), "inject.js")
         print(f"[*] Injecting JavaScript from: {inject_path}")
 
         try:
