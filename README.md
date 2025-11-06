@@ -8,7 +8,7 @@ lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 > This project uses a local MITM proxy to inject and execute `inject.js` on the Netflix error page
 ---
-## Tested On PS5 
+## Netflix Versions Tested On PS5
 
 | Version    | Works |
 |-------------|:-----:|
