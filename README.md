@@ -1,10 +1,10 @@
-# Netflix N Hack
+# Netflix 'N Hack
 
 Inject custom JavaScript into the Netflix PS5 error screen by intercepting Netflix's requests to localhost.
 
 PS5 firmware version: 4.03-12.XX
 
-lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
+Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 > This project uses a local MITM proxy to inject and execute `inject.js` on the Netflix error page
 ---
@@ -17,11 +17,11 @@ lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 | 02.000.000  | ❌ |
 | 03.000.000  | ❌ |
 | 04.000.000  | ❌ |
-| [05.000.000](https://prosperopatches.com/PPSA01615?v=05.000.000) | ✅ |
-| [06.000.000](https://prosperopatches.com/PPSA01615?v=06.000.000) | ✅ |
-| [07.000.000](https://prosperopatches.com/PPSA01615?v=07.000.000) | ✅ |
-| [08.000.000](https://prosperopatches.com/PPSA01615?v=08.000.000) | ✅ |
-| [09.000.000](https://prosperopatches.com/PPSA01615?v=09.000.000) | ✅ |
+| [05.000.000 US](https://prosperopatches.com/PPSA01614?v=05.000.000) | ✅ |
+| [06.000.000 EU](https://prosperopatches.com/PPSA01615?v=06.000.000) | ✅ |
+| 07.000.000  | ❌ |
+| 08.000.000  | ❌ |
+| 09.000.000  | ❌ |
 | 10.000.000  | ❌ |
 | 11.000.000  | ❌ |
 | 12.000.000  | ❌ |
@@ -52,6 +52,16 @@ cd Netflix-PS4-JS-Inject
 # run mitmproxy with the provided script
 mitmproxy -s proxy.py
 
+```
+
+Current script will trigger after the WebSocket for remote logging is initiated.
+
+```bash
+# install websockets
+pip install websockets
+
+# run WebSocket server
+python ws.py
 
 ```
 
