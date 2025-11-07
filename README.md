@@ -110,7 +110,7 @@ If injection is successful, the error screen will load and inject.js will be exe
 - [ufm42](https://github.com/ufm42) for regex sandbox escape exploit and ideas! 
 - [autechre](https://github.com/autechre-warp) for the idea!
 - Dr.YenYen for testing!
-- [Gezine](https://github.com/gezine)for help with exploit/Y2JB for reference 
+- [Gezine](https://github.com/gezine) for help with exploit/Y2JB for reference 
 
 
 ---
