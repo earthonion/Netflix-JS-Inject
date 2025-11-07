@@ -106,11 +106,12 @@ Wait for Netflix to hit the error flow (probably ui-800)
 If injection is successful, the error screen will load and inject.js will be executed. Netflix may crash after the injection depending on payload.
 
 ### credits 
-
-- autechre for the idea https://github.com/autechre-warp
+- HUGE thanks to [c0w-ar](https://github.com/c0w-ar/) for complete inject.js userland exploit.
+- [ufm42](https://github.com/ufm42) for regex sandbox escape exploit and ideas! 
+- [autechre](https://github.com/autechre-warp) for the idea!
 - Dr.YenYen for testing!
-- Gezine for help with exploit/Y2JB for reference 
-- ufm42 for exploit ideas as well
+- [Gezine](https://github.com/gezine)for help with exploit/Y2JB for reference 
+
 
 ---
 ### License
