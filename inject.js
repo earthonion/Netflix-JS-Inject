@@ -717,7 +717,7 @@ function main () {
         }
 
         function read32_uncompressed(add){
-          let read = read642_uncompressed(add);
+          let read = read64_uncompressed(add);
           return  read & 0xffffffffn;
         }
 
