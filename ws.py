@@ -4,7 +4,7 @@ import websockets
 
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ssl_context.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
-//openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj "/CN=localhost"
+#openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj "/CN=localhost"
 
 async def handle_client(websocket: websockets.WebSocketServerProtocol):
     client_ip = websocket.remote_address[0]
