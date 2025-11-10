@@ -114,8 +114,8 @@ You can now open **YouTube** to send your payload or continue using **Netflix** 
 pip install mitmproxy
 
 # clone repository
-git clone https://github.com/earthonion/Netflix-PS4-JS-Inject/
-cd Netflix-PS4-JS-Inject
+git clone https://github.com/earthonion/Netflix-N-Hack/
+cd Netflix-N-Hack
 
 # run mitmproxy with the provided script
 mitmproxy -s proxy.py
