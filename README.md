@@ -21,8 +21,9 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 > This will wipe your M.2 drive.
 
 
-> Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak.
-> **Do not update your console to activate!** Use System backup method below
+**Disclaimer:** Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak. 
+
+**Do not update your console to activate!** Use System backup method below
 
 
 
