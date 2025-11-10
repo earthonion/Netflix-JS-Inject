@@ -2,12 +2,6 @@
 
 Inject custom JavaScript into the Netflix PS5 error screen by intercepting Netflix's requests to localhost.
 
-> [!WARNING]
-> Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak.
-
-> [!CAUTION]
-> **Do not update your console to activate!**
-
 PS5 firmware version: 4.03-12.XX
 
 Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
@@ -21,6 +15,13 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 ## Download image from [Releases](https://github.com/earthonion/Netflix-N-Hack/releases/latest)
 
 ### M.2 Drive Setup (Windows Only)
+
+> [!WARNING]
+> Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak.
+
+> [!CAUTION]
+> **Do not update your console to activate!** Use System backup method below
+
 > [!WARNING]
 > This will wipe your M.2 drive.
 
