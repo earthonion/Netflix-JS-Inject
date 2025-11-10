@@ -6,7 +6,7 @@ Inject custom JavaScript into the Netflix PS5 error screen by intercepting Netfl
 > Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak.
 
 > [!CAUTION]
-> **Do not update to activate!**
+> **Do not update your console to activate!**
 
 PS5 firmware version: 4.03-12.XX
 
