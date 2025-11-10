@@ -93,7 +93,7 @@ For either **Wi-Fi** or **LAN**, continue the setup:
 - You may see a **network failure or PSN connection error** — this is expected and can be safely ignored.  
 - The connection will still function normally.  
 
-You can now open **YouTube** to send your payload or continue using **Netflix** safely.
+You can now open **Netflix** safely.
 
 
 
