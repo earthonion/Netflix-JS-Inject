@@ -165,14 +165,6 @@ On your PS5:
 
 ---
 
-### Netflix
-
-Open the Netflix app on the PS5.
-
-Wait for Netflix to hit the error flow (probably ui-800)
-
-If injection is successful, the error screen will load and inject.js will be executed. Netflix may crash after the injection depending on payload.
-
 ### Credits 
 - HUGE thanks to [c0w-ar](https://github.com/c0w-ar/) for complete inject.js userland exploit and lapse port!
 - [ufm42](https://github.com/ufm42) for regex sandbox escape exploit and ideas! 
