@@ -15,8 +15,11 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 ## Download image from [Releases](https://github.com/earthonion/Netflix-N-Hack/releases/latest)
 
 ### M.2 Drive Setup (Windows Only)
+> [!WARNING]
+> This will wipe your M.2 drive.
 
-> **Note:** For the current M.2 drives, Windows is required. Append their names with `Windows_Only` for clarity.
+> [!NOTE]
+> For the current M.2 drives, Windows is required. Append their names with `Windows_Only` for clarity.
 
 #### Step 1: Download Required Software
 - Download **HDD Raw Copy Tool** from:  
@@ -37,9 +40,17 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 4. Select your **empty M.2 drive** as the destination.
 5. Click **START** to begin the imaging process.
 
+
+#### Step 5: put M.2 drive into PS5 
+
+Place the m.2 into the ps5 internal m.2 slot of the ps5 while it's off and then turn it on and you'll have access to the netflix app
+
 ---
 
 ### System Backup Restore
+
+> [!WARNING]
+> This will wipe all existing games and saves from your PS5!
 
 #### Step 1: Prepare the Backup USB
 1. Format a USB drive as **exFAT** or **FAT32**.
