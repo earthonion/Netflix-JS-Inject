@@ -16,17 +16,15 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 ### M.2 Drive Setup (Windows Only)
 
-> [!WARNING]
-> Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak.
-
-> [!CAUTION]
-> **Do not update your console to activate!** Use System backup method below
 
 > [!WARNING]
 > This will wipe your M.2 drive.
 
-> [!NOTE]
-> For the current M.2 drives, Windows is required.
+
+> Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak.
+> **Do not update your console to activate!** Use System backup method below
+
+
 
 #### Step 1: Download Required Software
 - Download **HDD Raw Copy Tool** from:  
