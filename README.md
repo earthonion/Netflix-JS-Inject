@@ -19,7 +19,7 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 > This will wipe your M.2 drive.
 
 > [!NOTE]
-> For the current M.2 drives, Windows is required. Append their names with `Windows_Only` for clarity.
+> For the current M.2 drives, Windows is required.
 
 #### Step 1: Download Required Software
 - Download **HDD Raw Copy Tool** from:  
