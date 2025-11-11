@@ -38,7 +38,7 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 - Inside, you will see a `.zip` image file, with size depending on the target SSD:
 
   - **256 GB image:** ~**380 MB** `.zip`
-  - **500 GB image:** ~**560 MB** `.zip`
+  - **500 GB image:** ~**670 MB** `.zip`
   - **1 TB image:** ~**1.2 GB** `.zip`
   - **2 TB image:** ~**2.3 GB** `.zip`
 
@@ -83,7 +83,7 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 #### Step 2: Restore the System
 Follow Sony’s official guide to restore your PS5 system from the USB:
-[https://www.playstation.com/en-gb/support/hardware/back-up-ps5-data-USB/](https://www.playstation.com/en-gb/support/hardware/back-up-ps5-data-USB/)
+[https://www.playstation.com/en-us/support/hardware/back-up-ps5-data-USB/](https://www.playstation.com/en-us/support/hardware/back-up-ps5-data-USB/)
 
 
 
