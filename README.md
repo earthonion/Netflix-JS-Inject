@@ -31,7 +31,8 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 #### Step 2: Download the Image Archive
 - Download the **`.7z` archive** for your desired capacity from the [**Releases** section.](https://github.com/earthonion/netflix-n-hack/releases)
-- The `.7z` download size is ~**95-100 MB** for all capacities (256 GB / 500 GB / 1 TB / 2 TB).
+  - NOTE: **Exact capacity matters** - not all 1TB drives are 1000GB: some are 1024GB, same with 2000/2048, 4000/4096; choose carefully!
+- The `.7z` download size is roughly ~**95-100 MB** for all capacities.
 
 #### Step 3: Extract the ZIP Image
 - Extract the downloaded `.7z` file.
@@ -41,6 +42,7 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
   - **500 GB image:** ~**670 MB** `.zip`
   - **1 TB image:** ~**1.2 GB** `.zip`
   - **2 TB image:** ~**2.3 GB** `.zip`
+  - **4 TB image:** ~**3.9 GB** `.zip`
 
   <ins>**This `.zip` is what you will flash with balenaEtcher.**</ins>
 
@@ -60,9 +62,10 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 > - **500 GB image:** ~**15 minutes**
 > - **1 TB image:** ~**25 minutes**
 > - **2 TB image:** ~**45 minutes**
+> - **4 TB image:** ~**80 minutes**
 >
 > Etcher will appear stuck at **0%** for a while, then at **85-99%** for several minutes.
-> This is normal; let it finish without interruption.
+> This is normal, let it finish without interruption!
 
 #### Step 5: Install the M.2 Drive in the PS5
 - Power off the PS5 completely.
