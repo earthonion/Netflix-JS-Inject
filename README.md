@@ -214,7 +214,7 @@ On your PS5:
 - Dr.yenyen for testing and coordinating system back up, and much more help!
 - [Gezine](https://github.com/gezine) for help with exploit/Y2JB for reference and lapse port!
 - Rush for creating system backup, 256GB and 2TB images !
-- Jester for testing 2TB!
+- [Jester](https://github.com/god-jester) for testing 2TB and devising easiest imaging method, and gathered all images for m.2!
 
 ---
 ### License
