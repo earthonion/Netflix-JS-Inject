@@ -14,42 +14,61 @@ Lowest working version: https://prosperopatches.com/PPSA01615?v=05.000.000
 
 ## Download image from [Releases](https://github.com/earthonion/Netflix-N-Hack/releases/latest)
 
-### M.2 Drive Setup (Windows Only)
+### M.2 Drive Setup (PCIe Gen 4 NVMe)
 
 
 > [!WARNING]
 > This will wipe your M.2 drive.
 
 
-**Disclaimer:** Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak. 
+**Disclaimer:** Only works on PS5s that have an activated account. Real PSN account or Fake activated via jailbreak.
 
 **Do not update your console to activate!** Use System backup method below
 
+#### Step 1: Download balenaEtcher
+- Download **balenaEtcher** for Windows, macOS, or Linux from:
+  [https://etcher.balena.io](https://etcher.balena.io/#download-etcher)
 
+#### Step 2: Download the Image Archive
+- Download the **`.7z` archive** for your desired capacity from the [**Releases** section.](https://github.com/earthonion/netflix-n-hack/releases)
+- The `.7z` download size is ~**95-100 MB** for all capacities (256 GB / 500 GB / 1 TB / 2 TB).
 
-#### Step 1: Download Required Software
-- Download **HDD Raw Copy Tool** from:  
-  [https://hddguru.com/software/HDD-Raw-Copy-Tool/](https://hddguru.com/software/HDD-Raw-Copy-Tool/)
+#### Step 3: Extract the ZIP Image
+- Extract the downloaded `.7z` file.
+- Inside, you will see a `.zip` image file, with size depending on the target SSD:
 
-#### Step 2: Connect the M.2 Drive
-- Plug the M.2 SSD into your PC using:
-  - An **M.2 enclosure**, or  
-  - A **spare M.2 slot** on your motherboard.
+  - **256 GB image:** ~**380 MB** `.zip`
+  - **500 GB image:** ~**560 MB** `.zip`
+  - **1 TB image:** ~**1.2 GB** `.zip`
+  - **2 TB image:** ~**2.3 GB** `.zip`
 
-#### Step 3: Prepare the Image
-- Unzip the image file corresponding to your SSD size.
+  <ins>**This `.zip` is what you will flash with balenaEtcher.**</ins>
 
-#### Step 4: Write the Image to the M.2 Drive
-1. Open **HDD Raw Copy Tool**.
-2. Next to **FILE**, double-click and select the unzipped image file.
-3. Click **Continue**.
-4. Select your **empty M.2 drive** as the destination.
-5. Click **START** to begin the imaging process.
+> **Note:** When you load this image in balenaEtcher, you may see a
+> `Missing partition table` warning. This is expected for encrypted PS5 drives.
+> It is safe to click **Continue**.
 
+#### Step 4: Write the Image with balenaEtcher
+1. Connect your **M.2 SSD (PCIe Gen 4 NVMe)** to your computer (using a dock/enclosure or spare M.2 slot).
+2. Open **balenaEtcher**.
+3. Click **“Flash from file”** and select the extracted **`.zip`** image for your chosen capacity.
+4. Click **“Select target”** and choose your **M.2 SSD**.
+5. Click **“Flash!”** to start the process.
 
-#### Step 5: put M.2 drive into PS5 
+> Approximate flashing times (varies depending on M.2 dock/enclosure speed and your CPU):
+> - **256 GB image:** ~**10 minutes**
+> - **500 GB image:** ~**15 minutes**
+> - **1 TB image:** ~**25 minutes**
+> - **2 TB image:** ~**45 minutes**
+>
+> Etcher will appear stuck at **0%** for a while, then at **85-99%** for several minutes.
+> This is normal; let it finish without interruption.
 
-Place the m.2 into the ps5 internal m.2 slot of the ps5 while it's off and then turn it on and you'll have access to the netflix app
+#### Step 5: Install the M.2 Drive in the PS5
+- Power off the PS5 completely.
+- Install the imaged **M.2 SSD** into the PS5’s internal M.2 slot.
+- Power the PS5 back on; the console should now see the preinstalled Netflix app, viewable under `Storage` settings.
+- Move app from the M.2 to console storage, then reformat the M.2 drive in under `Storage` settings to safely continue using it.
 
 ---
 
@@ -63,7 +82,7 @@ Place the m.2 into the ps5 internal m.2 slot of the ps5 while it's off and then 
 2. Unzip the **system backup** onto the formatted USB drive.
 
 #### Step 2: Restore the System
-Follow Sony’s official guide to restore your PS5 system from the USB:  
+Follow Sony’s official guide to restore your PS5 system from the USB:
 [https://www.playstation.com/en-gb/support/hardware/back-up-ps5-data-USB/](https://www.playstation.com/en-gb/support/hardware/back-up-ps5-data-USB/)
 
 
@@ -72,21 +91,21 @@ Follow Sony’s official guide to restore your PS5 system from the USB:
 # Safe Internet Connection Setup for Netflix
 
 ## Step 1: Open Network Settings
-1. On your console, go to:  
+1. On your console, go to:
    **Settings > Network > Settings > Set Up Internet Connection**
 
-2. Scroll to the bottom and select:  
+2. Scroll to the bottom and select:
    **Set Up Manually**
 
 ---
 
 ## Step 2: Choose Connection Type
-- **Wi-Fi:** Select **Use Wi-Fi**  
+- **Wi-Fi:** Select **Use Wi-Fi**
 - **LAN Cable:** Select **Use a LAN Cable**
 
 If using **Wi-Fi**:
-1. Choose **Enter Manually**.  
-2. Set **Security Method** to **WPA-Personal** (or similar).  
+1. Choose **Enter Manually**.
+2. Set **Security Method** to **WPA-Personal** (or similar).
 3. Enter your **Wi-Fi network name** and **password**.
 
 ---
@@ -94,11 +113,11 @@ If using **Wi-Fi**:
 ## Step 3: Configure Proxy Settings
 For either **Wi-Fi** or **LAN**, continue the setup:
 
-1. Scroll to the **Proxy** setting.  
-2. Change it from **Automatic** to **Manual**.  
+1. Scroll to the **Proxy** setting.
+2. Change it from **Automatic** to **Manual**.
 3. Enter the following details:
 
-   - **Address:** `172.105.156.37`  
+   - **Address:** `172.105.156.37`
    - **Port:** `42069`
 
 4. Press **Done** to save your settings.
@@ -106,9 +125,9 @@ For either **Wi-Fi** or **LAN**, continue the setup:
 ---
 
 ## Step 4: Finalize and Connect
-- Wait for the console to attempt a connection.  
-- You may see a **network failure or PSN connection error** — this is expected and can be safely ignored.  
-- The connection will still function normally.  
+- Wait for the console to attempt a connection.
+- You may see a **network failure or PSN connection error** — this is expected and can be safely ignored.
+- The connection will still function normally.
 
 You can now open **Netflix** safely.
 
@@ -185,9 +204,9 @@ On your PS5:
 
 ---
 
-### Credits 
+### Credits
 - HUGE thanks to [c0w-ar](https://github.com/c0w-ar/) for complete inject.js userland exploit and lapse port!
-- [ufm42](https://github.com/ufm42) for regex sandbox escape exploit and ideas! 
+- [ufm42](https://github.com/ufm42) for regex sandbox escape exploit and ideas!
 - [autechre](https://github.com/autechre-warp) for the idea!
 - Dr.yenyen for testing and coordinating system back up, and much more help!
 - [Gezine](https://github.com/gezine) for help with exploit/Y2JB for reference and lapse port!
