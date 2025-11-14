@@ -201,7 +201,7 @@ async function elf_loader() {
         check_jailbroken();
 
         logger.log("Loading elfldr.elf from proxy");
-        logger
+        logger.flush();
 
         const elf_data = malloc(400*1024);
         let elf_size = fetch_file("elfldr.elf", elf_data);
