@@ -164,26 +164,6 @@ function write_buffer(addr, buffer) {
     }
 }
 
-function read_cstring (add) {
-    let str = '';
-    let byte;
-
-    while (true) {
-        try {
-            byte = read8_uncompressed(add);
-        } catch (e) {
-            logger.log("read_cstring error reading memory at address " + hex(add) + ", e.message");
-            break; 
-        }
-        if (byte === 0n) {
-            break;
-        }
-        str += String.fromCharCode(Number(byte));
-        add++;
-    }
-    return str;
-}
-
 function get_nidpath() {
     const path_buffer = malloc(0x255);
     const len_ptr = malloc(8);
@@ -1518,3 +1498,5 @@ function get_ptb_entry_of_relative_va(virt_addr) {
     
     return gpu_walk_pt(vmid, relative_va);
 }
+
+logger.log("Init lapse_prepare_1.js");

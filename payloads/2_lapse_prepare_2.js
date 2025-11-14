@@ -685,3 +685,5 @@ function race_one(req_addr, tcp_sd, sds) {
         return null;
     }
 }
+
+logger.log("Init lapse_prepare_2.js");

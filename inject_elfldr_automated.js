@@ -215,7 +215,7 @@ const logger = {
 
             w.text = {
                 contents: "",
-                size: 10,
+                size: 12,
                 color: {
                     a: 255,
                     r: 0,
@@ -238,7 +238,7 @@ const logger = {
         this.refreshTimer = nrdp.setTimeout(() => {
             this.refresh();
             this.refreshTimer = null;
-        }, 50);
+        }, 200);
 
         this.pendingRefresh = true;
     },
@@ -1331,6 +1331,48 @@ function main () {
             let script_str = bytes_to_string(buffer_read, bytes_received);
             return script_str;
         }
+
+
+        /***** Give time to Gibbon to populate UI *****/
+
+        sleep(20000);
+        logger.init();
+        logger.flush();
+
+        /***** Let's trigger Lapse *****/
+
+        let script = get_script("1_lapse_prepare_1.js");
+        eval(script);
+        sleep(5000);
+        logger.flush();
+
+        script = get_script("2_lapse_prepare_2.js");
+        eval(script);
+        sleep(5000);
+        logger.flush();
+
+        let attemp_lapse = 0;
+
+        do {
+            script = get_script("3_lapse_nf.js");
+            eval(script);
+            sleep(5000);
+            logger.flush();
+            attemp_lapse++;
+        } while (!is_jailbroken() && attemp_lapse<3)
+
+        if (!is_jailbroken()) {
+            send_notification("Jailbreak didn't succeed in 3 attemps.\nPlease restart your console and try again.");
+            throw new Error("Jailbreak didn't succeed in 3 attemps. Please restart your console and try again.");
+        }
+
+        /*****         Spawn elfldr        *****/
+        /*****  Gibbon crash after elfldr  *****/
+        sleep(10000);
+        script = get_script("elf_loader.js");
+        eval(script);
+        logger.flush();
+
 
         /***** Let's receive JS payloads *****/
         const MAXSIZE = 500 * 1024;
