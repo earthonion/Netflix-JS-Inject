@@ -44,7 +44,7 @@ def tls_clienthello(data: tls.ClientHelloData) -> None:
         # Block domains at TLS layer
         if is_blocked(hostname):
             #data.ignore_connection = True
-            
+            data.reject()
             print(f"[*] Blocked HTTPS connection to: {hostname}")
 
 def request(flow: http.HTTPFlow) -> None:
