@@ -43,7 +43,8 @@ def tls_clienthello(data: tls.ClientHelloData) -> None:
         
         # Block domains at TLS layer
         if is_blocked(hostname):
-            data.ignore_connection = True
+            #data.ignore_connection = True
+            
             print(f"[*] Blocked HTTPS connection to: {hostname}")
 
 def request(flow: http.HTTPFlow) -> None:
@@ -54,7 +55,7 @@ def request(flow: http.HTTPFlow) -> None:
     if "netflix" in hostname:
         flow.response = http.Response.make( 
             200,
-            b"uwu"*9999999,  # probably don't need this many uwus. just corrupt the response 
+            b"uwu",  # probably don't need this many uwus. just corrupt the response 
             {"Content-Type": "application/x-msl+json"}
         )
         print(f"[*] Corrupted Netflix response for: {hostname}")
