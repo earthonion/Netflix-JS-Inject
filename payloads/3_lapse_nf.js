@@ -262,16 +262,6 @@
             logger.flush();
 
             get_rthdr(sd, buf, buflen);
-
-            logger.log("Leaked aio_entry:");
-            logger.flush();
-
-            let leak_str = "";
-            for (let i = 0; i < 0x80; i += 8) {
-                if (i % 16 === 0 && i !== 0) leak_str += "\n";
-                leak_str += hex(read64_uncompressed(buf + BigInt(reqs2_off + i))) + " ";
-            }
-            logger.log(leak_str);
             
             const aio_info_addr = read64_uncompressed(buf + BigInt(reqs2_off) + 0x18n);
             
