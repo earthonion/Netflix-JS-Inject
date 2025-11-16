@@ -198,9 +198,21 @@ On your PS5:
 
 5. Save settings and run Test Internet Connection (be ready to press it).
 
+6. Edit inject_elfldr_auto.js:
+```
+const ip_script = "10.0.0.2"; // IP address of computer running mitmproxy.
+const ip_script_port = 8080; //port which mitmproxy is running on
 
+```
 
 > Make sure your PC running mitmproxy is on the same network and reachable at the IP you entered.
+
+7. Open Netflix and wait. 
+
+8. expect a crash, but if you see elfldr listening on port 9021 you can send your elf payload 
+> [!NOTE]
+> We are working on stability, to stop crashes and improve elfldr execution. if it fails reboot and try again
+
 
 
 
