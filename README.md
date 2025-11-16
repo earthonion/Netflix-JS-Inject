@@ -198,7 +198,7 @@ On your PS5:
 
 5. Save settings and run Test Internet Connection (be ready to press it).
 
-### Edit inject_elfldr_auto.js and inject.js:
+### Edit inject_elfldr_automated.js and inject.js:
 
 ```
 const ip_script = "10.0.0.2"; // IP address of computer running mitmproxy.
