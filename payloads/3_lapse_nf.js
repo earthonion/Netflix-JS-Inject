@@ -829,7 +829,7 @@
             function patch_dynlib_restriction(proc) {
                 const dynlib_obj_addr = kernel.read_qword(proc + 0x3e8n);
 
-                kernel.write_dword(dynlib_obj_addr + 0x118n, 0n); // prot (todo: recheck)
+                //kernel.write_dword(dynlib_obj_addr + 0x118n, 0n); // prot (todo: recheck) credit JM fixes KP for 7.xx users
                 kernel.write_qword(dynlib_obj_addr + 0x18n, 1n); // libkernel ref
 
                 // bypass libkernel address range check (credit @cheburek3000)
@@ -1212,4 +1212,5 @@
         logger.log(e.stack);
         logger.flush();
     }
+
 })();
