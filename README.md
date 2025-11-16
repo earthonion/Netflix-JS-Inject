@@ -212,7 +212,7 @@ const ip_script_port = 8080; //port which mitmproxy is running on
 
 
 > [!NOTE]
-> expect a crash, but if you see elfldr listening on port 9021 you can send your elf payload 
+> expect a crash, but if you see elfldr listening on port 9021 you can send your elf payload.
 > We are working on stability, to stop crashes and improve elfldr execution. if it fails reboot and try again
 
 
