@@ -94,7 +94,7 @@ def request(flow: http.HTTPFlow) -> None:
 
     # Map 1_lapse_prepare_1 to 1_lapse_prepare_1.js
     if "/js/1_lapse_prepare_1.js" in flow.request.path:
-        inject_path = os.path.join(os.path.dirname(__file__), "payloads\\1_lapse_prepare_1.js")
+        inject_path = os.path.join(os.path.dirname(__file__), "payloads", "1_lapse_prepare_1.js")
         print(f"[*] Injecting JavaScript from: {inject_path}")
 
         try:
@@ -116,7 +116,7 @@ def request(flow: http.HTTPFlow) -> None:
 
     # Map 2_lapse_prepare_2 to 2_lapse_prepare_2.js
     if "/js/2_lapse_prepare_2.js" in flow.request.path:
-        inject_path = os.path.join(os.path.dirname(__file__), "payloads\\2_lapse_prepare_2.js")
+        inject_path = os.path.join(os.path.dirname(__file__), "payloads", "2_lapse_prepare_2.js")
         print(f"[*] Injecting JavaScript from: {inject_path}")
 
         try:
@@ -138,7 +138,7 @@ def request(flow: http.HTTPFlow) -> None:
 
     # Map 3_lapse_nf to 3_lapse_nf.js
     if "/js/3_lapse_nf.js" in flow.request.path:
-        inject_path = os.path.join(os.path.dirname(__file__), "payloads\\3_lapse_nf.js")
+        inject_path = os.path.join(os.path.dirname(__file__), "payloads", "3_lapse_nf.js")
         print(f"[*] Injecting JavaScript from: {inject_path}")
 
         try:
@@ -158,9 +158,9 @@ def request(flow: http.HTTPFlow) -> None:
                 {"Content-Type": "text/plain"}
             )
 
-    # Map elfldr.elf to elfldr.elf
+    # Map elfldr.elf to elfldr.elf (elf loader JS)
     if "/js/elf_loader.js" in flow.request.path:
-        inject_path = os.path.join(os.path.dirname(__file__), "payloads\\elf_loader.js")
+        inject_path = os.path.join(os.path.dirname(__file__), "payloads", "elf_loader.js")
         print(f"[*] Injecting JavaScript from: {inject_path}")
 
         try:
@@ -180,9 +180,9 @@ def request(flow: http.HTTPFlow) -> None:
                 {"Content-Type": "text/plain"}
             )
 
-    # Map elfldr.elf to elfldr.elf
+    # Map elfldr.elf to elfldr.elf (binary)
     if "/js/elfldr.elf" in flow.request.path:
-        inject_path = os.path.join(os.path.dirname(__file__), "payloads\\elfldr.elf")
+        inject_path = os.path.join(os.path.dirname(__file__), "payloads", "elfldr.elf")
         print(f"[*] Injecting JavaScript from: {inject_path}")
 
         try:
